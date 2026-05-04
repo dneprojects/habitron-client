@@ -1,5 +1,6 @@
 """Habitron API client for socket communication and string handling."""
 
+from __future__ import annotations
 import logging
 import socket
 import struct
