@@ -8,3 +8,6 @@ htmlcov/
 .ruff_cache/
 .pytest_cache/
 build/
+
+# Local-only hardware probe scripts (contain site-specific data; never publish)
+scripts/
