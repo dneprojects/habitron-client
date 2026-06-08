@@ -47,3 +47,7 @@ ignore = ["ASYNC109"]
 python_version = "3.11"
 strict = true
 files = ["src/habitron_client"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=habitron_client --cov-report=term-missing --cov-fail-under=90"
