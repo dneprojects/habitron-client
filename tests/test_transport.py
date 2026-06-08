@@ -64,23 +64,7 @@ def test_bus_error_is_raised() -> None:
         asyncio.run(scenario())
 
 
-def test_reconnect_after_drop_then_succeeds() -> None:
-    async def scenario() -> tuple[bytes, int]:
-        replies = [
-            Reply(data=None, close=True),  # drop the first attempt mid-exchange
-            Reply(data=build_response(b"AGAIN")),
-        ]
-        async with running(replies=replies) as sim:
-            async with HabitronClient("127.0.0.1", sim.port) as client:
-                result = await client.get_global_descriptions()
-            return result, len(sim.requests)
-
-    result, attempts = asyncio.run(scenario())
-    assert result == b"AGAIN"
-    assert attempts == 2
-
-
-def test_persistent_drop_raises_connection_error() -> None:
+def test_default_is_at_most_once() -> None:
     async def scenario() -> int:
         async with running(Reply(data=None, close=True)) as sim:
             async with HabitronClient("127.0.0.1", sim.port) as client:
@@ -88,7 +72,30 @@ def test_persistent_drop_raises_connection_error() -> None:
                     await client.get_global_descriptions()
             return len(sim.requests)
 
-    assert asyncio.run(scenario()) == 2
+    # Default max_attempts=1: a mid-request drop propagates with no retry.
+    assert asyncio.run(scenario()) == 1
+
+
+def test_max_attempts_retries_until_success() -> None:
+    async def scenario() -> tuple[bytes, int]:
+        replies = [
+            Reply(data=None, close=True),  # attempt 1 dropped
+            Reply(data=None, close=True),  # attempt 2 dropped
+            Reply(data=build_response(b"AGAIN")),  # attempt 3 succeeds
+        ]
+        async with running(replies=replies) as sim:
+            async with HabitronClient("127.0.0.1", sim.port, max_attempts=3) as client:
+                result = await client.get_global_descriptions()
+            return result, len(sim.requests)
+
+    result, attempts = asyncio.run(scenario())
+    assert result == b"AGAIN"
+    assert attempts == 3
+
+
+def test_max_attempts_zero_raises_value_error() -> None:
+    with pytest.raises(ValueError, match="max_attempts"):
+        HabitronClient("127.0.0.1", 1, max_attempts=0)
 
 
 def test_timeout_raises_timeout_error() -> None:

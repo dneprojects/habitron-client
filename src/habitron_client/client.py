@@ -70,11 +70,27 @@ class HabitronClient:
         port: int = DEFAULT_PORT,
         *,
         connect_timeout: float = DEFAULT_CONNECT_TIMEOUT,
+        max_attempts: int = 1,
     ) -> None:
+        """Create a client for ``host``:``port``.
+
+        Args:
+            host: SmartHub host name or IP address.
+            port: SmartHub TCP port.
+            connect_timeout: Seconds to wait when opening a connection.
+            max_attempts: Number of attempts per request before raising.
+                Defaults to 1 (no automatic retry). Retries are only safe for
+                read-only operations the caller knows to be idempotent; commands
+                that mutate device state (e.g. ``inc_dec_counter``) may be
+                executed more than once if the response is lost on the wire.
+                Must be >= 1.
+        """
         self._host = host
         self._port = port
         self._entered = False
-        self._bus = BusConnection(host, port, connect_timeout=connect_timeout)
+        self._bus = BusConnection(
+            host, port, connect_timeout=connect_timeout, max_attempts=max_attempts
+        )
 
     @property
     def host(self) -> str:

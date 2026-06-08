@@ -38,7 +38,6 @@ _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_PORT: int = 7777
 DEFAULT_CONNECT_TIMEOUT: float = 10.0
-_MAX_ATTEMPTS: int = 2
 
 
 class BusConnection:
@@ -50,10 +49,14 @@ class BusConnection:
         port: int = DEFAULT_PORT,
         *,
         connect_timeout: float = DEFAULT_CONNECT_TIMEOUT,
+        max_attempts: int = 1,
     ) -> None:
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be >= 1")
         self._host = host
         self._port = port
         self._connect_timeout = connect_timeout
+        self._max_attempts = max_attempts
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
         self._lock = asyncio.Lock()
@@ -110,7 +113,7 @@ class BusConnection:
     ) -> tuple[bytes, int]:
         async with self._lock:
             last_exc: BaseException | None = None
-            for attempt in range(_MAX_ATTEMPTS):
+            for attempt in range(self._max_attempts):
                 await self._ensure_connection()
                 try:
                     async with asyncio.timeout(timeout):
