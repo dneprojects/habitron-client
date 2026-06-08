@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.0.0-rc2
+
+Review fixes on top of the async migration, ahead of the 1.0.0 tag.
+
+### Changed
+- **`async with` is now enforced.** Issuing a command on a client that was
+  never entered as a context manager (nor `connect()`-ed) raises
+  `HabitronConnectionError` instead of silently opening a connection that
+  leaks. `__aenter__` no longer connects eagerly; the connection opens lazily
+  on the first request and is always closed by `__aexit__`.
+- **Retries are now at-most-once by default** (`max_attempts=1`). The previous
+  hard-coded 2-attempt retry could execute a non-idempotent command (e.g.
+  `inc_dec_counter`) twice when only the response was lost. `max_attempts` is
+  now a validated constructor parameter (`>= 1`, else `ValueError`); retries
+  are opt-in and only safe for idempotent reads.
+- `socket.gaierror` (DNS) and UDP discovery-socket `OSError`s are wrapped in
+  `HabitronConnectionError`, so `except HabitronError` catches them.
+
+### Removed
+- `HabitronChecksumError` — it was never raised (the library does not validate
+  CRC internally). Can return if in-library CRC validation is added.
+
 ## 1.0.0
 
 First fully asynchronous, strictly typed release. **Breaking**: the synchronous
@@ -20,8 +42,7 @@ async client.
 
 ### Added
 - Typed exception hierarchy: `HabitronError` → `HabitronConnectionError`,
-  `HabitronTimeoutError`, `HabitronProtocolError` (→ `HabitronChecksumError`,
-  `HabitronBusError`).
+  `HabitronTimeoutError`, `HabitronProtocolError` (→ `HabitronBusError`).
 - `py.typed` marker — the package is now PEP 561 compliant.
 - Async bus-simulator test suite (96% coverage) and a CI workflow running
   `ruff`, `ruff format --check`, `mypy --strict` and `pytest --cov`.
