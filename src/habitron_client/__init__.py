@@ -17,7 +17,6 @@ from .discovery import (
 )
 from .exceptions import (
     HabitronBusError,
-    HabitronChecksumError,
     HabitronConnectionError,
     HabitronError,
     HabitronProtocolError,
@@ -32,7 +31,6 @@ except PackageNotFoundError:  # pragma: no cover - only during local source runs
 __all__ = [
     "Command",
     "HabitronBusError",
-    "HabitronChecksumError",
     "HabitronClient",
     "HabitronConnectionError",
     "HabitronError",

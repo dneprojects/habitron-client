@@ -7,7 +7,6 @@ from protocol problems::
     ├── HabitronConnectionError   (connect refused, EOF mid-frame, socket lost)
     ├── HabitronTimeoutError      (no response within the deadline)
     └── HabitronProtocolError     (a frame arrived but is unusable)
-        ├── HabitronChecksumError (CRC mismatch)
         └── HabitronBusError      (SmartHub reported an error code)
 """
 
@@ -28,10 +27,6 @@ class HabitronTimeoutError(HabitronError):
 
 class HabitronProtocolError(HabitronError):
     """A response was received but does not conform to the protocol."""
-
-
-class HabitronChecksumError(HabitronProtocolError):
-    """The CRC16 of a received frame did not match its payload."""
 
 
 class HabitronBusError(HabitronProtocolError):
