@@ -29,7 +29,7 @@ from ._models import (
 from ._protocol import build_frame
 from ._transport import DEFAULT_CONNECT_TIMEOUT, DEFAULT_PORT, BusConnection
 from .const import Command
-from .exceptions import HabitronBusError
+from .exceptions import HabitronBusError, HabitronConnectionError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -73,6 +73,7 @@ class HabitronClient:
     ) -> None:
         self._host = host
         self._port = port
+        self._entered = False
         self._bus = BusConnection(host, port, connect_timeout=connect_timeout)
 
     @property
@@ -86,7 +87,7 @@ class HabitronClient:
         return self._port
 
     async def __aenter__(self) -> HabitronClient:
-        await self._bus.connect()
+        self._entered = True
         return self
 
     async def __aexit__(
@@ -96,28 +97,41 @@ class HabitronClient:
         tb: TracebackType | None,
     ) -> None:
         await self._bus.close()
+        self._entered = False
 
     async def connect(self) -> None:
-        """Open the connection (normally handled by ``async with``)."""
+        """Open the connection eagerly (alternative to ``async with``)."""
+        self._entered = True
         await self._bus.connect()
 
     async def close(self) -> None:
         """Close the connection."""
         await self._bus.close()
+        self._entered = False
+
+    def _ensure_entered(self) -> None:
+        if not self._entered:
+            raise HabitronConnectionError(
+                "HabitronClient must be used as 'async with HabitronClient(...) "
+                "as c'. Direct calls without context manager are unsupported."
+            )
 
     # --- internal command helpers ----------------------------------------
 
     async def _send(
         self, cmd: Command, *args: int | bytes, timeout: float = _DEFAULT_TIMEOUT
     ) -> bytes:
+        self._ensure_entered()
         return await self._bus.request(build_frame(cmd, args), timeout=timeout)
 
     async def _send_crc(
         self, cmd: Command, *args: int | bytes, timeout: float = _DEFAULT_TIMEOUT
     ) -> tuple[bytes, int]:
+        self._ensure_entered()
         return await self._bus.request_crc(build_frame(cmd, args), timeout=timeout)
 
     async def _fire(self, cmd: Command, *args: int | bytes) -> None:
+        self._ensure_entered()
         await self._bus.send_only(build_frame(cmd, args))
 
     # --- SmartHub info / lifecycle ---------------------------------------

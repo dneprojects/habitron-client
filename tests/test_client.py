@@ -10,7 +10,10 @@ import pytest
 from habitron_client import HabitronClient, const
 from habitron_client._protocol import build_frame, wrap_command
 from habitron_client.const import Command
-from habitron_client.exceptions import HabitronProtocolError
+from habitron_client.exceptions import (
+    HabitronConnectionError,
+    HabitronProtocolError,
+)
 from sim import Reply, build_response, running, unwrap
 
 Call = Callable[[HabitronClient], Awaitable[object]]
@@ -227,3 +230,21 @@ def test_host_and_port_properties() -> None:
     client = HabitronClient("example.local", 1234)
     assert client.host == "example.local"
     assert client.port == 1234
+
+
+def test_direct_call_without_context_manager_raises() -> None:
+    async def scenario() -> None:
+        client = HabitronClient("127.0.0.1", 1)
+        with pytest.raises(HabitronConnectionError, match="async with"):
+            await client.get_smhub_info()
+
+    asyncio.run(scenario())
+
+
+def test_direct_send_only_without_context_manager_raises() -> None:
+    async def scenario() -> None:
+        client = HabitronClient("127.0.0.1", 1)
+        with pytest.raises(HabitronConnectionError, match="async with"):
+            await client.set_output(1, 2, True)
+
+    asyncio.run(scenario())

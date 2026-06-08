@@ -124,10 +124,11 @@ def test_send_only_transmits_frame_without_response() -> None:
 
 def test_send_only_swallows_connection_error() -> None:
     async def scenario() -> None:
-        # No server: send_only must not raise.
-        client = HabitronClient("127.0.0.1", _free_port(), connect_timeout=1.0)
-        await client.send_devregid(5, "ab")
-        await client.close()
+        # No server: send_only must not raise (inside a context manager).
+        async with HabitronClient(
+            "127.0.0.1", _free_port(), connect_timeout=1.0
+        ) as client:
+            await client.send_devregid(5, "ab")
 
     asyncio.run(scenario())
 
