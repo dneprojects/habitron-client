@@ -131,13 +131,32 @@ def test_send_only_transmits_frame_without_response() -> None:
 
 def test_send_only_swallows_connection_error() -> None:
     async def scenario() -> None:
-        # No server: send_only must not raise (inside a context manager).
-        async with HabitronClient(
-            "127.0.0.1", _free_port(), connect_timeout=1.0
-        ) as client:
-            await client.send_devregid(5, "ab")
+        # An entered client whose hub is unreachable: send_only must swallow the
+        # connection error and return None rather than raising.
+        client = HabitronClient("127.0.0.1", _free_port(), connect_timeout=1.0)
+        client._entered = True  # simulate post-enter state without a live hub
+        await client.send_devregid(5, "ab")
+        await client.close()
 
     asyncio.run(scenario())
+
+
+def test_aenter_connects_eagerly_and_raises_on_dead_host() -> None:
+    async def scenario() -> None:
+        with pytest.raises(HabitronConnectionError):
+            async with HabitronClient("127.0.0.1", _free_port(), connect_timeout=1.0):
+                pass  # body must not run — __aenter__ raises eagerly
+
+    asyncio.run(scenario())
+
+
+def test_methods_work_after_enter_without_explicit_connect() -> None:
+    async def scenario() -> bytes:
+        async with running(Reply(data=build_response(b"PAYLOAD"))) as sim:
+            async with HabitronClient("127.0.0.1", sim.port) as client:
+                return await client.get_global_descriptions()
+
+    assert asyncio.run(scenario()) == b"PAYLOAD"
 
 
 def test_wrap_roundtrip_through_simulator() -> None:

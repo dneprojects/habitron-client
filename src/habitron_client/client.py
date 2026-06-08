@@ -62,7 +62,12 @@ def _raise_on_bus_error(payload: bytes) -> bytes:
 
 
 class HabitronClient:
-    """Typed async client for a single Habitron SmartHub."""
+    """Typed async client for a single Habitron SmartHub.
+
+    The connection is established eagerly when entering the context manager, so
+    ``async with HabitronClient(host)`` raises ``HabitronConnectionError`` on
+    enter if the hub is unreachable, rather than on the first request.
+    """
 
     def __init__(
         self,
@@ -103,7 +108,7 @@ class HabitronClient:
         return self._port
 
     async def __aenter__(self) -> HabitronClient:
-        self._entered = True
+        await self.connect()
         return self
 
     async def __aexit__(
@@ -116,9 +121,13 @@ class HabitronClient:
         self._entered = False
 
     async def connect(self) -> None:
-        """Open the connection eagerly (alternative to ``async with``)."""
-        self._entered = True
+        """Open the connection eagerly (also performed by ``__aenter__``).
+
+        ``_entered`` is only set after the connection succeeds, so a failed
+        connect leaves no half-initialised, leaking client.
+        """
         await self._bus.connect()
+        self._entered = True
 
     async def close(self) -> None:
         """Close the connection."""

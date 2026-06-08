@@ -5,11 +5,11 @@
 Review fixes on top of the async migration, ahead of the 1.0.0 tag.
 
 ### Changed
-- **`async with` is now enforced.** Issuing a command on a client that was
-  never entered as a context manager (nor `connect()`-ed) raises
-  `HabitronConnectionError` instead of silently opening a connection that
-  leaks. `__aenter__` no longer connects eagerly; the connection opens lazily
-  on the first request and is always closed by `__aexit__`.
+- **`async with` is now enforced and connects eagerly.** Issuing a command on a
+  client that was never entered as a context manager (nor `connect()`-ed) raises
+  `HabitronConnectionError` instead of silently opening a connection that leaks.
+  `__aenter__` opens the connection eagerly, so an unreachable hub raises on
+  enter rather than on the first request; `__aexit__` always closes.
 - **Retries are now at-most-once by default** (`max_attempts=1`). The previous
   hard-coded 2-attempt retry could execute a non-idempotent command (e.g.
   `inc_dec_counter`) twice when only the response was lost. `max_attempts` is
