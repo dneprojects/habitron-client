@@ -1,8 +1,8 @@
 # Changelog
 
-## 1.0.0-rc2
+## 1.0.0 — 2026-06-08
 
-Review fixes on top of the async migration, ahead of the 1.0.0 tag.
+Review fixes on top of the async migration.
 
 ### Changed
 - **`async with` is now enforced and connects eagerly.** Issuing a command on a
@@ -22,7 +22,16 @@ Review fixes on top of the async migration, ahead of the 1.0.0 tag.
 - `HabitronChecksumError` — it was never raised (the library does not validate
   CRC internally). Can return if in-library CRC validation is added.
 
-## 1.0.0
+### Verified
+- Tested end-to-end against real SmartHub hardware (test instance with router
+  + multiple modules) covering: connection lifecycle, read path (smhub_info,
+  topology, module status — 59 consecutive round-trips on a persistent
+  connection), write path (LED toggle on a module with visual + bus-state
+  read-back verification), and external bus events (manual button press
+  correctly reflected in module state).
+- Verified on Python 3.11, 3.12, 3.13, 3.14 (local 3.14 run + CI matrix).
+
+## 1.0.0-rc1
 
 First fully asynchronous, strictly typed release. **Breaking**: the synchronous
 API was removed without replacement (path A); consumers must migrate to the
