@@ -8,6 +8,7 @@ import socket
 import pytest
 
 from habitron_client import discovery
+from habitron_client.exceptions import HabitronConnectionError
 
 
 def _descriptor() -> bytes:
@@ -44,8 +45,13 @@ def test_get_host_ip_resolves_localhost() -> None:
 
 
 def test_get_host_ip_unknown_host_raises() -> None:
-    with pytest.raises(socket.gaierror):
+    with pytest.raises(HabitronConnectionError):
         asyncio.run(discovery.get_host_ip("nonexistent.invalid."))
+
+
+def test_test_connection_invalid_host_raises_connection_error() -> None:
+    with pytest.raises(HabitronConnectionError):
+        asyncio.run(discovery.test_connection("nonexistent.invalid."))
 
 
 def test_parse_descriptor_valid() -> None:

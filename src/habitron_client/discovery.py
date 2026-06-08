@@ -12,7 +12,7 @@ import logging
 import socket
 
 from .client import HabitronClient
-from .exceptions import HabitronError
+from .exceptions import HabitronConnectionError, HabitronError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,11 +45,18 @@ def get_own_ip() -> str:
 
 
 async def get_host_ip(host_name: str) -> str:
-    """Resolve *host_name* to an IPv4 address (async DNS)."""
+    """Resolve *host_name* to an IPv4 address (async DNS).
+
+    Raises:
+        HabitronConnectionError: if the name cannot be resolved.
+    """
     loop = asyncio.get_running_loop()
-    infos = await loop.getaddrinfo(
-        host_name, None, family=socket.AF_INET, type=socket.SOCK_STREAM
-    )
+    try:
+        infos = await loop.getaddrinfo(
+            host_name, None, family=socket.AF_INET, type=socket.SOCK_STREAM
+        )
+    except socket.gaierror as exc:
+        raise HabitronConnectionError(f"cannot resolve host {host_name!r}") from exc
     return str(infos[0][4][0])
 
 
@@ -71,11 +78,14 @@ async def discover_smarthubs(
 ) -> list[dict[str, str]]:
     """Discover SmartHub/SmartServer hardware on the local network."""
     loop = asyncio.get_running_loop()
-    transport, protocol = await loop.create_datagram_endpoint(
-        _DiscoveryProtocol,
-        local_addr=(get_own_ip(), 0),
-        allow_broadcast=True,
-    )
+    try:
+        transport, protocol = await loop.create_datagram_endpoint(
+            _DiscoveryProtocol,
+            local_addr=(get_own_ip(), 0),
+            allow_broadcast=True,
+        )
+    except OSError as exc:
+        raise HabitronConnectionError("cannot open discovery socket") from exc
     found: list[dict[str, str]] = []
     seen: set[str] = set()
     try:
@@ -102,10 +112,15 @@ async def discover_smarthubs(
 async def query_smarthub(smhub_ip: str) -> dict[str, str]:
     """Read the properties of a single identified SmartIP/SmartHub."""
     loop = asyncio.get_running_loop()
-    transport, protocol = await loop.create_datagram_endpoint(
-        _DiscoveryProtocol,
-        remote_addr=(smhub_ip, _DISCOVERY_PORT),
-    )
+    try:
+        transport, protocol = await loop.create_datagram_endpoint(
+            _DiscoveryProtocol,
+            remote_addr=(smhub_ip, _DISCOVERY_PORT),
+        )
+    except OSError as exc:
+        raise HabitronConnectionError(
+            f"cannot reach {smhub_ip}:{_DISCOVERY_PORT}"
+        ) from exc
     try:
         transport.sendto(_REQ_HEADER)
         try:
