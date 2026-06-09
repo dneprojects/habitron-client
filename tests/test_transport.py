@@ -123,6 +123,10 @@ def test_send_only_transmits_frame_without_response() -> None:
         async with running(Reply(data=None, close=True)) as sim:
             async with HabitronClient("127.0.0.1", sim.port) as client:
                 await client.set_output(12, 3, True)
+                # send_only closes the connection immediately after drain(); yield
+                # so the simulator coroutine gets a turn to read the frame before
+                # we inspect sim.requests (Linux epoll scheduling requires this).
+                await asyncio.sleep(0)
             return sim.requests[-1]
 
     frame = asyncio.run(scenario())
