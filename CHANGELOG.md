@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.1 — 2026-06-09
+
+### Changed
+- Release workflow: tests must pass on all supported Python versions before
+  PyPI upload (OIDC Trusted Publishing via GitHub Actions).
+
+### Fixed
+- CHANGELOG: confirmed short-acknowledgement behaviour — was previously noted
+  as "inferred", now verified against real SmartHub hardware.
+
 ## 1.0.0 — 2026-06-08
 
 Review fixes on top of the async migration.
@@ -62,5 +72,5 @@ async client.
 
 ### Notes
 - The short-acknowledgement handling (a sub-header response is treated as the
-  hub closing the connection) is inferred from the legacy code and should be
-  confirmed against recorded bus captures. See `_transport.py`.
+  hub closing the connection) has been confirmed against a real SmartHub:
+  `b'OK'` arrives in ~4 ms via the `IncompleteReadError.partial` path.
