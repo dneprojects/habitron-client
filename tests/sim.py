@@ -92,7 +92,7 @@ class BusSimulator:
                     try:
                         writer.write(reply.data)
                         await writer.drain()
-                    except (ConnectionError, OSError):
+                    except ConnectionError, OSError:
                         break
                 if reply.close:
                     break

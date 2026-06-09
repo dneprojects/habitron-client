@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2 — 2026-06-09
+
+### Changed
+- Minimum Python version raised to 3.14 (aligned with Home Assistant ≥ 2026.3).
+- CI matrix reduced to Python 3.14 only.
+
 ## 1.0.1 — 2026-06-09
 
 ### Changed

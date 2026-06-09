@@ -143,7 +143,7 @@ async def query_smarthub(smhub_ip: str) -> dict[str, str]:
     try:
         host, _ = await loop.getnameinfo((descriptor["ip"], 0), socket.NI_NAMEREQD)
         info["hostname"] = host.split(".")[0]
-    except (socket.gaierror, OSError):
+    except (socket.gaierror, OSError):  # fmt: skip
         info["hostname"] = ""
     return info
 
