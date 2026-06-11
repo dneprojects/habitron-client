@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.3 — 2026-06-11
 
 ### Tests
 - Cover the remaining discovery error paths (`discover_smarthubs` socket
