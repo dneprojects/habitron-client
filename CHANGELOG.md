@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Tests
+- Cover the remaining discovery error paths (`discover_smarthubs` socket
+  failure, deadline break and response collection; `query_smarthub`
+  unresolvable host, invalid descriptor and reverse-DNS failure;
+  `test_connection` success and not-OK paths). `discovery.py` reaches 100 %
+  line coverage; overall coverage 95 % → 99 %.
+
 ## 1.0.2 — 2026-06-09
 
 ### Changed
