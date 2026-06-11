@@ -163,6 +163,15 @@ def test_methods_work_after_enter_without_explicit_connect() -> None:
     assert asyncio.run(scenario()) == b"PAYLOAD"
 
 
+def test_bus_connection_context_manager() -> None:
+    async def scenario() -> bytes:
+        async with running(Reply(data=build_response(b"OK"))) as sim:
+            async with BusConnection("127.0.0.1", sim.port) as bus:
+                return await bus.request(build_frame(GET_MODULES, ()), timeout=2.0)
+
+    assert asyncio.run(scenario()) == b"OK"
+
+
 def test_wrap_roundtrip_through_simulator() -> None:
     async def scenario() -> bytes:
         async with running(Reply(data=build_response(b"OK"))) as sim:
