@@ -86,6 +86,18 @@ CASES: list[tuple[str, Call, Command, tuple[int | bytes, ...]]] = [
     ("set_log_level", lambda c: c.set_log_level(1, 2), const.SET_LOG_LEVEL, (1, 2)),
     ("send_message", lambda c: c.send_message(1, 7), const.SEND_MESSAGE, (1, 15, 7)),
     ("send_sms", lambda c: c.send_sms(1, 7, 3), const.SEND_SMS, (1, 3, 7)),
+    (
+        "msg_text_set",
+        lambda c: c.send_message_text(6, "Hallo"),
+        const.SET_MESSAGE_TEXT,
+        (6, 5, b"Hallo"),
+    ),
+    (
+        "msg_text_reset",
+        lambda c: c.send_message_text(6, ""),
+        const.RESET_MESSAGE_TEXT,
+        (6,),
+    ),
     ("hub_restart", lambda c: c.hub_restart(), const.RESTART_HUB, ()),
     ("hub_reboot", lambda c: c.hub_reboot(), const.REBOOT_HUB, ()),
     ("module_restart", lambda c: c.module_restart(5), const.REBOOT_MODULE, (5,)),
@@ -237,6 +249,15 @@ def test_direct_call_without_context_manager_raises() -> None:
         client = HabitronClient("127.0.0.1", 1)
         with pytest.raises(HabitronConnectionError, match="async with"):
             await client.get_smhub_info()
+
+    asyncio.run(scenario())
+
+
+def test_send_message_text_too_long_raises() -> None:
+    async def scenario() -> None:
+        client = HabitronClient("127.0.0.1", 1)
+        with pytest.raises(ValueError, match="255"):
+            await client.send_message_text(6, "x" * 256)
 
     asyncio.run(scenario())
 

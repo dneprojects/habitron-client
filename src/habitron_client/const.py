@@ -97,6 +97,10 @@ SEND_MESSAGE: Final = Command(
 SEND_SMS: Final = Command(
     b"\x1e\x11\x0b\x01<mod>\xff\xff<sms><msg>", ("mod", "sms", "msg")
 )
+SET_MESSAGE_TEXT: Final = Command(
+    b"\x1e\x11\x01\x01<mod><len>\x00<msg>", ("mod", "len", "msg")
+)
+RESET_MESSAGE_TEXT: Final = Command(b"\x1e\x11\x00\x01<mod>\x00\x00", ("mod",))
 SET_CLIM_MODE: Final = Command(
     b"\x1e\x13\x01\x01<mod>\x02\x00<cmode><ctl12>", ("mod", "cmode", "ctl12")
 )

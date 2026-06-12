@@ -393,3 +393,13 @@ class HabitronClient:
     async def send_sms(self, mod_addr: int, msg_id: int, ct_id: int) -> None:
         """Send an SMS message to a module."""
         await self._send(const.SEND_SMS, mod_addr, ct_id, msg_id)
+
+    async def send_message_text(self, mod_addr: int, text: str) -> None:
+        """Show a free-text message on a module; an empty text clears it."""
+        msg = text.encode("iso8859-1")
+        if len(msg) > 255:
+            raise ValueError("message text must not exceed 255 bytes")
+        if msg:
+            await self._fire(const.SET_MESSAGE_TEXT, mod_addr, len(msg), msg)
+        else:
+            await self._fire(const.RESET_MESSAGE_TEXT, mod_addr)

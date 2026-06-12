@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `send_message_text(mod_addr, text)`: show a free-text message on a module's
+  display (command 30/17, action 1); an empty text clears it (action 0).
+  Text is ISO 8859-1 encoded, at most 255 bytes, sent fire-and-forget.
+  Requires module firmware with free-text message support (in development).
+
 ## 1.0.3 — 2026-06-11
 
 ### Tests
