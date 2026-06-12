@@ -256,8 +256,8 @@ def test_direct_call_without_context_manager_raises() -> None:
 def test_send_message_text_too_long_raises() -> None:
     async def scenario() -> None:
         client = HabitronClient("127.0.0.1", 1)
-        with pytest.raises(ValueError, match="255"):
-            await client.send_message_text(6, "x" * 256)
+        with pytest.raises(ValueError, match="32"):
+            await client.send_message_text(6, "x" * 33)
 
     asyncio.run(scenario())
 
