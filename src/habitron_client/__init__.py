@@ -22,6 +22,26 @@ from .exceptions import (
     HabitronProtocolError,
     HabitronTimeoutError,
 )
+from .model import (
+    Area,
+    BusMember,
+    ColorLed,
+    Cover,
+    Diagnostic,
+    Dimmer,
+    Finger,
+    Flag,
+    HbtnCommand,
+    Input,
+    Led,
+    Logic,
+    Module,
+    Output,
+    Router,
+    Sensor,
+    SetValue,
+    SmartController,
+)
 
 try:
     __version__ = version("habitron-client")
@@ -29,13 +49,31 @@ except PackageNotFoundError:  # pragma: no cover - only during local source runs
     __version__ = "0.0.0"
 
 __all__ = [
+    "Area",
+    "BusMember",
+    "ColorLed",
     "Command",
+    "Cover",
+    "Diagnostic",
+    "Dimmer",
+    "Finger",
+    "Flag",
     "HabitronBusError",
     "HabitronClient",
     "HabitronConnectionError",
     "HabitronError",
     "HabitronProtocolError",
     "HabitronTimeoutError",
+    "HbtnCommand",
+    "Input",
+    "Led",
+    "Logic",
+    "Module",
+    "Output",
+    "Router",
+    "Sensor",
+    "SetValue",
+    "SmartController",
     "SmhubInfo",
     "SmhubUpdate",
     "__version__",
