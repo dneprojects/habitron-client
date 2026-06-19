@@ -165,8 +165,18 @@ class Module:
     area: int = 0
     group: int = 0
     sw_version: str = ""
+    hw_version: str = ""
+    # Scalar module state filled from the status/settings bytes.
+    mode: int = 0
+    climate_settings: int = 0
+    climate_ctl12: int = 1
+    auxheat_value: int = 0
     inputs: list[Input] = field(default_factory=list)
+    analogins: list[Input] = field(default_factory=list)
     outputs: list[Output] = field(default_factory=list)
+    # The Smart Controller's single 0..255 analogue output (AOUT) — kept
+    # apart from the binary ``outputs`` so each member stays cleanly typed.
+    analog_outputs: list[Dimmer] = field(default_factory=list)
     dimmers: list[Dimmer] = field(default_factory=list)
     covers: list[Cover] = field(default_factory=list)
     sensors: list[Sensor] = field(default_factory=list)
@@ -176,7 +186,11 @@ class Module:
     flags: list[Flag] = field(default_factory=list)
     setvalues: list[SetValue] = field(default_factory=list)
     fingers: list[Finger] = field(default_factory=list)
+    ids: list[HbtnCommand] = field(default_factory=list)
     messages: list[HbtnCommand] = field(default_factory=list)
+    dir_commands: list[HbtnCommand] = field(default_factory=list)
+    vis_commands: list[HbtnCommand] = field(default_factory=list)
+    gsm_numbers: list[HbtnCommand] = field(default_factory=list)
     diags: list[Diagnostic] = field(default_factory=list)
 
 
@@ -196,9 +210,21 @@ class Router:
     id: int = 100
     name: str = ""
     version: str = ""
+    serial: str = ""
+    user1_name: str = "user1"
+    user2_name: str = "user2"
+    mode: int = 0x11
     sys_ok: bool = True
+    mirror_started: bool = True
+    max_group: int = 0
+    module_grp: list[int] = field(default_factory=list)
+    chan_list: list[list[int]] = field(default_factory=list)
     modules: list[Module] = field(default_factory=list)
     areas: list[Area] = field(default_factory=list)
     flags: list[Flag] = field(default_factory=list)
     groups: list[Flag] = field(default_factory=list)
+    coll_commands: list[HbtnCommand] = field(default_factory=list)
+    chan_timeouts: list[Diagnostic] = field(default_factory=list)
+    chan_currents: list[Diagnostic] = field(default_factory=list)
+    voltages: list[Diagnostic] = field(default_factory=list)
     diags: list[Diagnostic] = field(default_factory=list)
