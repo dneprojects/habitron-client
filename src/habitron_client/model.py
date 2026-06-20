@@ -124,9 +124,14 @@ class SetValue(BusMember):
 
 @dataclass(kw_only=True)
 class Finger(BusMember):
-    """An ekey fingerprint-reader reading."""
+    """An ekey fingerprint-reader reading.
+
+    ``value`` holds the last raw finger number, ``user`` the raw user id — both
+    as reported by the push event, so consumers can render the press.
+    """
 
     value: int = 0
+    user: int = 0
 
 
 @dataclass(kw_only=True)

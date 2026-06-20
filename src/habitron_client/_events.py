@@ -129,7 +129,8 @@ def _apply_module_event(
     elif evnt == HaEvents.FINGER:
         module.sensors[0].value = arg1 if arg2 <= 10 else arg1 * -1
         module.sensors[0].notify()
-        module.fingers[0].value = arg1
+        module.fingers[0].user = arg1  # raw user id
+        module.fingers[0].value = arg2  # raw finger number
         module.fingers[0].notify()
     elif evnt == HaEvents.DIM_VAL:
         module.dimmers[arg1].brightness = arg2
