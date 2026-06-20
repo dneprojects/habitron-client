@@ -15,6 +15,9 @@ router layer are ported separately.
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Sequence
+
 from ._indices import MODULE_CODES, MStatIdx
 from .model import (
     BusMember,
@@ -23,6 +26,8 @@ from .model import (
     Diagnostic,
     Dimmer,
     Finger,
+    Flag,
+    HbtnCommand,
     Input,
     Led,
     Logic,
@@ -32,6 +37,8 @@ from .model import (
     SetValue,
     SmartController,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _u16(data: bytes, idx: int) -> int:
@@ -434,3 +441,219 @@ _STATUS_PARSERS = {
     "gsm": _status_generic,
     "generic": _status_generic,
 }
+
+
+# --------------------------------------------------------------------------- #
+# Definitions / label parsing (mirrors module.py::get_names + label handlers)  #
+# --------------------------------------------------------------------------- #
+
+
+def parse_definitions(
+    module: Module, definitions: bytes, *, name_prefix: str = ""
+) -> bool:
+    """Fill member names/areas/types from a module's definition block.
+
+    Mirrors ``HbtnModule.get_names``: walks the ``Beschriftung`` (label) lines,
+    applies them to the matching members, default-names the unlabelled ones and
+    runs the controller / dimm output→dimmer type fix-ups. ``name_prefix`` is
+    used for the default names of unlabelled members (the integration passes its
+    module id). Mutates ``module`` in place; returns ``False`` if there is no
+    label data.
+    """
+    if not definitions:
+        return False
+    no_lines = int.from_bytes(definitions[3:5], "little")
+    resp = definitions[7:]
+    if len(resp) == 0:
+        return False
+    for _ in range(no_lines):
+        if resp == b"":
+            break
+        line_len = int(resp[5]) + 5
+        line = resp[0:line_len]
+        if int(line[2]) == 235:  # Beschriftung (label)
+            _process_label_line(module, line)
+        resp = resp[line_len:]
+
+    # Smart Controller analogue output (AOUT): old outputs[15] -> typed member.
+    if module.typ[0] == 1 and module.analog_outputs:
+        ao = module.analog_outputs[0]
+        src = module.outputs[15]
+        ao.name = src.name
+        ao.area = src.area
+        ao.type = 8  # analog output
+        if not ao.name.strip():
+            ao.name = f"{name_prefix} Out16"
+        # Disable the vestigial binary slot so it is not exposed twice.
+        src.name = ao.name
+        src.type = -1
+
+    _set_default_names(module.inputs, "Inp", name_prefix)
+    _set_default_names(module.outputs, "Out", name_prefix)
+
+    if module.mod_type == "Smart Controller Mini":
+        if module.color_leds:
+            module.color_leds[0].name = "Ambient"
+        return True
+    if module.mod_type[:16] == "Smart Controller":
+        _make_dimmer(module, 0, 10)
+        _make_dimmer(module, 1, 11)
+    elif module.typ in (b"\x0a\x14", b"\x0a\x15", b"\x0a\x16"):  # Smart Dimm
+        for i in range(4):
+            _make_dimmer(module, i, i)
+    return True
+
+
+def _make_dimmer(module: Module, dim_idx: int, out_idx: int) -> None:
+    """Turn a backing relay output into a dimmer (name/area/type fix-up)."""
+    dim = module.dimmers[dim_idx]
+    out = module.outputs[out_idx]
+    dim.name = out.name
+    dim.area = out.area
+    dim.nmbr = dim_idx
+    if out.type < 0:
+        dim.type = -2  # disabled
+        out.type = -2
+    else:
+        dim.type = 2
+        out.type = 2
+
+
+def _set_default_names(
+    members: Sequence[BusMember], def_name: str, prefix: str
+) -> None:
+    """Give unlabelled members a default name and disable them (type negated)."""
+    for e_idx, member in enumerate(members):
+        if member.name.strip() == "":
+            member.name = f"{prefix} {def_name}{e_idx + 1}"
+            member.type = -1 * member.type
+            member.nmbr = e_idx
+
+
+def _process_label_line(module: Module, line: bytes) -> None:
+    """Dispatch a single label line to its target by line type."""
+    text = line[8:-1].decode("iso8859-1").strip()
+    arg_code = int(line[3])
+    line_type = int(line[0])
+    if line_type == 252:  # finger ids
+        module.ids.append(HbtnCommand(name=text, nmbr=arg_code))
+    elif line_type == 253:  # direct commands
+        module.dir_commands.append(HbtnCommand(name=text, nmbr=arg_code))
+    elif line_type == 254:
+        _process_message_label(module, text, arg_code, line)
+    elif line_type == 255:
+        _process_descriptor_label(module, text, arg_code, line)
+
+
+def _process_message_label(
+    module: Module, text: str, arg_code: int, line: bytes
+) -> None:
+    """Handle line[0]==254 (message / GSM-number description)."""
+    if module.mod_type == "Smart GSM":
+        if int(line[4]) == 1:  # german entries only
+            module.gsm_numbers.append(HbtnCommand(name=text, nmbr=arg_code))
+    else:
+        module.messages.append(HbtnCommand(name=text, nmbr=arg_code))
+
+
+def _process_descriptor_label(
+    module: Module, text: str, arg_code: int, line: bytes
+) -> None:
+    """Handle line[0]==255 (interface descriptor) with flat dispatch."""
+    try:
+        if module.mod_type == "Smart GSM" and int(line[4]) == 1:
+            module.messages.append(HbtnCommand(name=text, nmbr=arg_code))
+        elif 10 <= arg_code < 18:  # module buttons
+            inp = module.inputs[arg_code - 10]
+            inp.name = text
+            inp.type = 1
+            inp.area = 0
+            inp.nmbr = arg_code - 10
+        elif 101 <= arg_code < 109:  # buttons, long press
+            pass
+        elif 18 <= arg_code < 26:
+            _set_led_label(module, arg_code, text)
+        elif 26 <= arg_code < 30:  # Touch corner colour LEDs
+            module.color_leds[arg_code - 25].name = text
+        elif 40 <= arg_code < 50:
+            _set_input_label(module, arg_code, text, line)
+        elif 50 <= arg_code < 52:
+            _set_analog_input_label(module, arg_code, text, line)
+        elif 110 <= arg_code < 120:
+            _set_logic_label(module, arg_code, text)
+        elif 120 <= arg_code < 136:  # flags
+            module.flags.append(
+                Flag(
+                    name=text,
+                    nmbr=len(module.flags),
+                    idx=arg_code - 119,
+                    type=0,
+                    value=0,
+                )
+            )
+        elif arg_code == 136:  # module area
+            module.area = line[1]
+        elif 140 <= arg_code < 173:  # visual commands (max 32)
+            module.vis_commands.append(
+                HbtnCommand(name=text[2:], nmbr=ord(text[1]) * 256 + ord(text[0]))
+            )
+        elif module.mod_type[0:9] == "Smart Out":  # outputs in Out modules
+            out = module.outputs[arg_code - 60]
+            out.name = text
+            out.type = 1
+            out.area = line[1]
+            out.nmbr = arg_code - 60
+        else:  # outputs
+            out_idx = arg_code - 60
+            if 0 <= out_idx < len(module.outputs):
+                module.outputs[out_idx].name = text
+                module.outputs[out_idx].area = line[1]
+            else:
+                _LOGGER.debug(
+                    "Ignoring label with unmapped arg_code %s: %s", arg_code, text
+                )
+    except Exception as err_msg:
+        _LOGGER.warning("Error processing line '%s': %s", line, err_msg)
+
+
+def _set_led_label(module: Module, arg_code: int, text: str) -> None:
+    """arg_code 18..26: LED / colour-LED name."""
+    if module.mod_type == "Smart Controller Mini":
+        module.color_leds[arg_code - 17].name = text
+    else:
+        module.leds[arg_code - 17].name = text
+
+
+def _set_input_label(module: Module, arg_code: int, text: str, line: bytes) -> None:
+    """arg_code 40..50: input button labels."""
+    if module.mod_type == "Smart Controller Mini":
+        if 44 <= arg_code < 48:
+            inp = module.inputs[arg_code - 42]
+            inp.name = text
+            inp.type = 1
+            inp.area = line[1]
+            inp.nmbr = arg_code - 42
+    else:
+        inp = module.inputs[arg_code - 32]
+        inp.name = text
+        inp.type = 1
+        inp.area = line[1]
+        inp.nmbr = arg_code - 32
+
+
+def _set_analog_input_label(
+    module: Module, arg_code: int, text: str, line: bytes
+) -> None:
+    """arg_code 50..52: analogue-input labels (Smart Controller only)."""
+    if module.mod_type[:16] == "Smart Controller":
+        anlg = module.analogins[arg_code - 50]
+        anlg.name = text
+        anlg.area = line[1]
+
+
+def _set_logic_label(module: Module, arg_code: int, text: str) -> None:
+    """arg_code 110..120: name the matching logic unit (if it exists yet)."""
+    for lgc in module.logic:
+        if lgc.nmbr == arg_code - 109:
+            lgc.name = text
+            break
