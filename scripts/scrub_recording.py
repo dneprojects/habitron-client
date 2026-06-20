@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 from base64 import b64decode, b64encode
 from typing import Any
 
@@ -61,7 +62,11 @@ def _scrub_descriptions(payload: bytes) -> bytes:
 
 
 def _scrub_module_definitions(payload: bytes) -> bytes:
-    """get_module_definitions: label lines with text at line[8:-1]."""
+    """get_module_definitions: label lines with text at line[8:-1].
+
+    Fills through ``line_len`` (incl. the trailing separator byte) so no real
+    name fragment can survive at the line boundary.
+    """
     out = bytearray(payload)
     if len(out) < 7:
         return bytes(out)
@@ -71,13 +76,18 @@ def _scrub_module_definitions(payload: bytes) -> bytes:
         if ptr + 6 > len(out):
             break
         line_len = out[ptr + 5] + 5
-        _fill(out, ptr + 8, ptr + line_len - 1)
+        _fill(out, ptr + 8, ptr + line_len)
         ptr += line_len
     return bytes(out)
 
 
 def _scrub_smr(payload: bytes) -> bytes:
-    """get_smr: four length-prefixed names (router/user1/user2/serial)."""
+    """get_smr: four length-prefixed names (router/user1/user2/serial).
+
+    The names are filled, then the whole gap between the last name and the
+    (kept) firmware-version tail ``smr[-22:]`` is zeroed — the parser never
+    reads it, and it can hold residual site strings.
+    """
     out = bytearray(payload)
     ptr = 1
     for _ in range(4):  # channel sections
@@ -95,6 +105,29 @@ def _scrub_smr(payload: bytes) -> bytes:
         str_len = out[ptr]
         _fill(out, ptr + 1, ptr + 1 + str_len)
         ptr += str_len + 1
+    # Zero everything up to the firmware-version tail (smr[-22:], kept).
+    for j in range(ptr, max(ptr, len(out) - 22)):
+        out[j] = 0
+    return bytes(out)
+
+
+# Byte offsets parse_settings actually reads; everything else in the 256-byte
+# settings block (incl. embedded module names) is zeroed.
+_SETTINGS_KEEP = (
+    set(range(4, 36))  # shutter + tilt times
+    | set(range(39, 42))  # input state
+    | {48}  # climate mode
+    | set(range(83, 122))  # hw + sw version strings
+    | {131, 132, 153}  # climate ctl12, shutter stat, ad state
+)
+
+
+def _scrub_settings(payload: bytes) -> bytes:
+    """get_module_settings: keep only parsed offsets, zero the rest."""
+    out = bytearray(payload)
+    for i in range(len(out)):
+        if i not in _SETTINGS_KEEP:
+            out[i] = 0
     return bytes(out)
 
 
@@ -102,20 +135,29 @@ _SCRUBBERS = {
     "get_router_modules": _scrub_inventory,
     "get_global_descriptions": _scrub_descriptions,
     "get_module_definitions": _scrub_module_definitions,
+    "get_module_settings": _scrub_settings,
     "get_smr": _scrub_smr,
-    # status / settings payloads carry no site names → left untouched.
+    # status payloads are pure binary (no names) → left untouched.
 }
 
+_MAC_RE = re.compile(r"^[0-9a-fA-F]{2}([:-][0-9a-fA-F]{2}){5}$")
+_IP_RE = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
 
-def _scrub_smhub_info(info: dict[str, Any]) -> dict[str, Any]:
-    """Redact the SmartHub network identity (mac/host/ip)."""
-    net = info.get("hardware", {}).get("network", {})
-    for key in ("host", "lan mac", "wifi mac"):
-        if key in net:
-            net[key] = "redacted"
-    if "ip" in net:
-        net["ip"] = "0.0.0.0"
-    return info
+
+def _scrub_smhub_info(obj: Any, key: str = "") -> Any:
+    """Recursively redact any mac/ip value and host/ssid key in smhub info."""
+    if isinstance(obj, dict):
+        return {k: _scrub_smhub_info(v, k) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_scrub_smhub_info(v) for v in obj]
+    if isinstance(obj, str):
+        if any(token in key.lower() for token in ("host", "ssid", "mac")):
+            return "redacted"
+        if _MAC_RE.match(obj):
+            return "00:00:00:00:00:00"
+        if _IP_RE.match(obj):
+            return "0.0.0.0"
+    return obj
 
 
 def main() -> None:

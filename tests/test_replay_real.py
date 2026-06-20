@@ -11,6 +11,7 @@ real-world data the way the pre-library integration did.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import pathlib
@@ -64,11 +65,15 @@ def _load() -> dict[str, Any]:
     return data
 
 
-async def test_replay_builds_well_formed_model() -> None:
+async def _build(data: dict[str, Any]) -> Router:
+    client = ReplayClient(list(data["calls"]))
+    return await async_build_system(client, b_uid=data["b_uid"])  # type: ignore[arg-type]
+
+
+def test_replay_builds_well_formed_model() -> None:
     """The recorded bytes build the expected module model end to end."""
     data = _load()
-    client = ReplayClient(list(data["calls"]))
-    router = await async_build_system(client, b_uid=data["b_uid"])  # type: ignore[arg-type]
+    router = asyncio.run(_build(data))
 
     assert isinstance(router, Router)
     assert len(router.modules) == data["module_count"]
@@ -76,20 +81,30 @@ async def test_replay_builds_well_formed_model() -> None:
     for module in router.modules:
         assert module.mod_type, f"module {module.addr} has no type"
         assert module.uid  # hw_version or inventory uid
-        # Every labelled member ends up with a non-empty name.
+        # Every addressable member (nmbr >= 0; placeholders are nmbr == -1)
+        # ends up either named or disabled (type negated).
         for group in (module.outputs, module.inputs, module.covers):
             for member in group:
+                if member.nmbr < 0:
+                    continue
                 assert member.name != "" or member.type < 0
 
 
-async def test_replay_refreshes_consume_all_recorded_calls() -> None:
+def test_replay_refreshes_consume_all_recorded_calls() -> None:
     """Build + the recorded refresh cycles consume the whole call log."""
     data = _load()
-    client = ReplayClient(list(data["calls"]))
-    router = await async_build_system(client, b_uid=data["b_uid"])  # type: ignore[arg-type]
 
-    last_crc: int | None = None
-    # Drain whatever refresh cycles the recording captured.
-    while not client.exhausted:
-        last_crc = await async_refresh_system(client, router, last_crc=last_crc)  # type: ignore[arg-type]
-    assert client.exhausted
+    async def _scenario() -> bool:
+        client = ReplayClient(list(data["calls"]))
+        router = await async_build_system(client, b_uid=data["b_uid"])  # type: ignore[arg-type]
+        last_crc: int | None = None
+        # Drain whatever refresh cycles the recording captured.
+        while not client.exhausted:
+            last_crc = await async_refresh_system(
+                client,  # type: ignore[arg-type]
+                router,
+                last_crc=last_crc,
+            )
+        return client.exhausted
+
+    assert asyncio.run(_scenario())

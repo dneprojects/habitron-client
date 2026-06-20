@@ -123,4 +123,4 @@ def test_scrub_smhub_info_redacts_network_identity() -> None:
     net = out["hardware"]["network"]
     assert net["ip"] == "0.0.0.0"
     assert net["host"] == "redacted"
-    assert net["lan mac"] == "redacted"
+    assert net["lan mac"] == "redacted"  # any "mac" key → redacted
