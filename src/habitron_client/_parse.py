@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 
-from ._indices import MODULE_CODES, MStatIdx
+from ._indices import MODULE_CODES, MSetIdx, MStatIdx
 from .model import (
     BusMember,
     ColorLed,
@@ -657,3 +657,81 @@ def _set_logic_label(module: Module, arg_code: int, text: str) -> None:
         if lgc.nmbr == arg_code - 109:
             lgc.name = text
             break
+
+
+# --------------------------------------------------------------------------- #
+# Settings parsing (mirrors module.py::get_settings)                           #
+# --------------------------------------------------------------------------- #
+
+# German/English cover-name tokens stripped to derive the cover's base name.
+_COVER_NAME_TOKENS = ("auf", "ab", "auf", "zu", "up", "down")
+
+
+def parse_settings(module: Module, settings: bytes) -> bool:
+    """Fill versions, input typing and cover detection from the settings block.
+
+    Mirrors ``HbtnModule.get_settings``: hardware/software versions, the
+    analog/switch input fix-ups and the shutter/blind cover detection
+    (polarity + tilt). Mutates ``module`` in place; returns ``False`` if there
+    is no settings data.
+    """
+    if not settings:
+        return False
+
+    module.hw_version = (
+        settings[MSetIdx.HW_VERS : MSetIdx.HW_VERS_].decode("iso8859-1").strip()
+    )
+    module.sw_version = (
+        settings[MSetIdx.SW_VERS : MSetIdx.SW_VERS_].decode("iso8859-1").strip()
+    )
+    module.climate_settings = int(settings[MSetIdx.CLIM_MODE])
+    module.climate_ctl12 = int(settings[MSetIdx.CLIM_CTL12])
+
+    inp_state = int.from_bytes(
+        settings[MSetIdx.INP_STATE : MSetIdx.INP_STATE + 3], "little"
+    )
+    ad_state = settings[MSetIdx.AD_STATE]
+    for inp in module.inputs:
+        if ad_state & (0x01 << inp.nmbr) > 0 and module.typ == b"\x0b\x1f":
+            inp.type = 3  # analog input
+            anlg = module.analogins[inp.nmbr - 2]
+            anlg.type = 3
+            anlg.name = inp.name
+            anlg.area = inp.area
+        elif inp_state & (0x01 << inp.nmbr) > 0:
+            inp.type *= 2  # switch
+
+    for c_idx in range(len(module.covers)):
+        cm_idx = c_idx
+        if module.mod_type[:16] == "Smart Controller":
+            cm_idx -= 2
+            if cm_idx < 0:
+                cm_idx += 5
+        if settings[MSetIdx.SHUTTER_STAT] & (0x01 << cm_idx) == 0:
+            continue
+        polarity = (
+            int(settings[MSetIdx.SHUTTER_TIMES + 1 + 2 * cm_idx])
+            - int(settings[MSetIdx.SHUTTER_TIMES + 2 * cm_idx])
+            >= 0
+        ) * 2 - 1
+        tilt = 1 + (
+            abs(
+                int(settings[MSetIdx.TILT_TIMES + 1 + 2 * cm_idx])
+                - int(settings[MSetIdx.TILT_TIMES + 2 * cm_idx])
+            )
+            > 0
+        )
+        pol = polarity * tilt  # +-1 for shutters, +-2 for blinds
+        cname = module.outputs[2 * c_idx].name.strip()
+        for token in _COVER_NAME_TOKENS:
+            cname = cname.replace(token, "")
+        cover = module.covers[c_idx]
+        cover.name = cname.strip()
+        cover.nmbr = c_idx
+        cover.type = pol
+        cover.area = module.outputs[2 * c_idx].area
+        cover.position = 0
+        cover.tilt = 0
+        module.outputs[2 * c_idx].type = -10  # disable backing light outputs
+        module.outputs[2 * c_idx + 1].type = -10
+    return True
