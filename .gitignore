@@ -11,5 +11,7 @@ build/
 dist/
 .venv*/
 
-# Local-only hardware probe scripts (contain site-specific data; never publish)
-scripts/
+# Real-hub recordings contain site-specific data (room/module names) — never
+# publish. The capture/scrub tools in scripts/ are tracked; only their raw
+# output and any non-anonymised captures are ignored.
+scripts/captures/

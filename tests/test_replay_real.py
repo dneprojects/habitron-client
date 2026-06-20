@@ -22,16 +22,16 @@ import pytest
 from habitron_client._setup import async_build_system, async_refresh_system
 from habitron_client.model import Router
 
-_RECORDING = (
-    pathlib.Path(__file__).resolve().parent.parent
-    / "scripts"
-    / "captures"
-    / "build_recording.json"
-)
+_ROOT = pathlib.Path(__file__).resolve().parent.parent
+# Prefer a local, full-fidelity recording; fall back to the committed,
+# anonymised fixture so the replay still runs in CI.
+_LOCAL = _ROOT / "scripts" / "captures" / "build_recording.json"
+_ANON = _ROOT / "tests" / "fixtures" / "anon_recording.json"
+_RECORDING = _LOCAL if _LOCAL.exists() else _ANON
 
 pytestmark = pytest.mark.skipif(
     not _RECORDING.exists(),
-    reason="no real-hub recording present (run scripts/capture_hub.py)",
+    reason="no recording present (run scripts/capture_hub.py + scrub_recording.py)",
 )
 
 
