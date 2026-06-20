@@ -206,6 +206,7 @@ class SmartController(Module):
 
     battery: list[Diagnostic] = field(default_factory=list)
     stream_name: str = ""
+    client_version: str = "unknown"
 
 
 @dataclass(kw_only=True)
