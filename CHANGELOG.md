@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.0.0 — 2026-06-20
+
+### Added
+- Typed device model (`model.py`): `BusMember` base + per-member dataclasses
+  (`Input`, `Output`, `Dimmer`, `Cover`, `Sensor`, `Led`, `ColorLed`, `Logic`,
+  `Flag`, `SetValue`, `Finger`, `HbtnCommand`, `Diagnostic`) and
+  `Module`/`SmartController`/`Router`/`Area`, with per-member change listeners
+  (`add_listener`/`remove_listener`/`notify`). No Home Assistant dependency.
+- Full protocol parsing moved out of the integration into the library: module
+  member build + compact-status parsing, definitions/label parsing, settings
+  parsing (versions, input typing, cover detection) and the router layer (SMR,
+  module inventory + factory, global descriptions, router status, compact-status
+  distribution).
+- High-level API: `async_build_system(client, *, b_uid)`,
+  `async_refresh_system(client, router, *, last_crc)` and
+  `apply_event(router, mod_id, evnt, *args)`.
+
+### Changed
+- The library now owns the device model and parsing; consumers read typed
+  members and subscribe to per-member notifications instead of parsing raw
+  bytes. The transport API is unchanged.
+
 ## 1.0.4 — 2026-06-12
 
 ### Added
