@@ -153,7 +153,7 @@ def apply_router_status(router: Router, status: bytes) -> None:
     if len(status) < RoutIdx.MIRROR_STARTED:
         _LOGGER.warning("Router status too short, length: %s", len(status))
         return
-    router.mode = int(status[RoutIdx.MODE0])
+    _set(router.mode, "value", int(status[RoutIdx.MODE0]))
 
     flags_state = int.from_bytes(
         status[RoutIdx.FLAG_GLOB : RoutIdx.FLAG_GLOB + 2], "little"

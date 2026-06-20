@@ -214,7 +214,7 @@ def build_module(*, uid: str, addr: int, typ: bytes, name: str, group: int) -> M
 
 def apply_status(module: Module, status: bytes) -> None:
     """Parse a compact-status block into ``module`` and fire change listeners."""
-    module.mode = status[MStatIdx.MODE]
+    _set(module.mode, "value", status[MStatIdx.MODE])
 
     # Discover counter logic elements lazily on the first status.
     if not module.logic:

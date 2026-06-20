@@ -59,10 +59,12 @@ def apply_event(
             return
     elif evnt == HaEvents.MODE:
         if arg1 == 0:
-            router.mode = arg2
+            router.mode.value = arg2
+            router.mode.notify()
         else:
             module = router.modules[router.module_grp.index(arg1)]
-            module.mode = arg2
+            module.mode.value = arg2
+            module.mode.notify()
         return
 
     target = _get_module(router, mod_id)

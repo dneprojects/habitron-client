@@ -166,8 +166,9 @@ class Module:
     group: int = 0
     sw_version: str = ""
     hw_version: str = ""
+    # Daytime/group mode as a notifiable member (entity-bound select).
+    mode: Flag = field(default_factory=lambda: Flag(name="Mode", nmbr=0, value=0))
     # Scalar module state filled from the status/settings bytes.
-    mode: int = 0
     climate_settings: int = 0
     climate_ctl12: int = 1
     auxheat_value: int = 0
@@ -213,7 +214,7 @@ class Router:
     serial: str = ""
     user1_name: str = "user1"
     user2_name: str = "user2"
-    mode: int = 0x11
+    mode: Flag = field(default_factory=lambda: Flag(name="Mode", nmbr=0, value=0x11))
     sys_ok: bool = True
     mirror_started: bool = True
     max_group: int = 0
