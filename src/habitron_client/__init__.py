@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError, version
 
+from ._events import apply_event
 from ._models import SmhubInfo, SmhubUpdate
 from ._protocol import calc_crc, check_crc, format_block_output
+from ._setup import async_build_system, async_refresh_system
 from .client import HabitronClient
 from .const import Command
 from .discovery import (
@@ -77,6 +79,9 @@ __all__ = [
     "SmhubInfo",
     "SmhubUpdate",
     "__version__",
+    "apply_event",
+    "async_build_system",
+    "async_refresh_system",
     "calc_crc",
     "check_crc",
     "discover_smarthubs",
