@@ -222,7 +222,7 @@ def apply_status(module: Module, status: bytes) -> None:
         for l_idx in range(10):
             if status[MStatIdx.COUNTER + 3 * l_idx] == 5:
                 module.logic.append(
-                    Logic(name=f"Counter {cnt + 1}", nmbr=cnt, idx=l_idx, type=5)
+                    Logic(name=f"Counter {cnt + 1}", nmbr=l_idx, idx=cnt, type=5)
                 )
                 cnt += 1
         if not module.logic:
@@ -585,8 +585,8 @@ def _process_descriptor_label(
             module.flags.append(
                 Flag(
                     name=text,
-                    nmbr=len(module.flags),
-                    idx=arg_code - 119,
+                    nmbr=arg_code - 119,
+                    idx=len(module.flags),
                     type=0,
                     value=0,
                 )

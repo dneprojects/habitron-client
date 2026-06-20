@@ -217,12 +217,15 @@ class Router:
     sys_ok: bool = True
     mirror_started: bool = True
     max_group: int = 0
+    cover_autostop_del: int = 5
     module_grp: list[int] = field(default_factory=list)
     chan_list: list[list[int]] = field(default_factory=list)
     modules: list[Module] = field(default_factory=list)
     areas: list[Area] = field(default_factory=list)
     flags: list[Flag] = field(default_factory=list)
     groups: list[Flag] = field(default_factory=list)
+    # ``states[0]`` = system OK, ``states[1]`` = mirror started (entity-bound).
+    states: list[Flag] = field(default_factory=list)
     coll_commands: list[HbtnCommand] = field(default_factory=list)
     chan_timeouts: list[Diagnostic] = field(default_factory=list)
     chan_currents: list[Diagnostic] = field(default_factory=list)
