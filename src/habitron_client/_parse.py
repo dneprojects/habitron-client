@@ -233,6 +233,20 @@ def apply_status(module: Module, status: bytes) -> None:
     _STATUS_PARSERS.get(_module_kind(module.typ), _status_generic)(module, status)
 
 
+def _apply_color_leds(m: Module, s: bytes) -> None:
+    """Apply colour-LED on/off + colour from the status RGB mask.
+
+    Shared by every module that carries colour LEDs (Smart Controller Touch,
+    Smart Controller Mini). A no-op for modules without any — the loop has
+    nothing to iterate.
+    """
+    cled_state = s[MStatIdx.RGB_MASK]
+    for cled in m.color_leds:
+        base = MStatIdx.RGB_MASK + 3 * cled.nmbr
+        _set(cled, "is_on", bool(cled_state & (0x01 << cled.nmbr)))
+        _set(cled, "rgb", [int(s[base + 1]), int(s[base + 2]), int(s[base + 3]), 0])
+
+
 def _status_controller(m: Module, s: bytes) -> None:
     """Smart Controller (XL / Touch) status."""
     _set(m.sensors[0], "value", int(s[MStatIdx.MOV]))
@@ -256,12 +270,7 @@ def _status_controller(m: Module, s: bytes) -> None:
     for led in m.leds:
         _set(led, "is_on", bool(led_state & (0x01 << led.nmbr)))
 
-    if m.typ[1] == 4:  # Smart Touch colour LEDs
-        cled_state = s[MStatIdx.RGB_MASK]
-        for cled in m.color_leds:
-            base = MStatIdx.RGB_MASK + 3 * cled.nmbr
-            _set(cled, "is_on", bool(cled_state & (0x01 << cled.nmbr)))
-            _set(cled, "rgb", [int(s[base + 1]), int(s[base + 2]), int(s[base + 3]), 0])
+    _apply_color_leds(m, s)
 
     for cover in m.covers:
         if cover.nmbr >= 0:
@@ -302,8 +311,7 @@ def _status_mini(m: Module, s: bytes) -> None:
     out_state = int.from_bytes(s[MStatIdx.OUT_1_8 : MStatIdx.OUT_1_8 + 3], "little")
     for outpt in m.outputs:
         _set(outpt, "is_on", bool(out_state & (0x01 << outpt.nmbr)))
-    for cled in m.color_leds:
-        _set(cled, "is_on", bool(out_state & (0x01 << (cled.nmbr + 15))))
+    _apply_color_leds(m, s)
 
     inp_state = int.from_bytes(s[MStatIdx.INP_1_8 : MStatIdx.INP_1_8 + 3], "little")
     for inp in m.inputs:

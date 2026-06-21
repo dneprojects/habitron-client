@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.1 — 2026-06-21
+
+### Fixed
+- Smart Controller Mini colour LEDs now read their on/off state **and** colour
+  from the status RGB mask (`RGB_MASK`), the same path the Smart Touch already
+  used — instead of the module's output-status bits. The colour-LED status
+  handling is now unified across all modules (no per-module special-casing), so
+  the mirror/poll keeps colour LEDs in sync independently of the output events.
+
 ## 2.0.0 — 2026-06-20
 
 ### Added

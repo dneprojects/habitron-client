@@ -109,6 +109,36 @@ def test_mini_status_sets_flag_value_from_bit() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Status parsing — colour LEDs (unified: Touch + Mini both read RGB_MASK)      #
+# --------------------------------------------------------------------------- #
+
+
+def test_mini_status_color_leds_from_rgb_mask() -> None:
+    """Mini colour LEDs read on/off + colour from RGB_MASK, not the output bits."""
+    mini = _module(b"\x32\x01", "Mini")
+    status = _zero_status()
+    status[MStatIdx.RGB_MASK] = 0x02  # bit 1 -> color_leds[1] on
+    base = MStatIdx.RGB_MASK + 3 * 1
+    status[base + 1], status[base + 2], status[base + 3] = 10, 20, 30
+    apply_status(mini, bytes(status))
+    assert mini.color_leds[1].is_on is True
+    assert mini.color_leds[1].rgb == [10, 20, 30, 0]
+    assert mini.color_leds[0].is_on is False
+
+
+def test_touch_status_color_leds_from_rgb_mask() -> None:
+    """Smart Touch colour LEDs use the very same RGB_MASK path (no module case)."""
+    sc = _module(b"\x01\x04", "Touch")
+    status = _zero_status()
+    status[MStatIdx.RGB_MASK] = 0x01  # bit 0 -> color_leds[0] on
+    base = MStatIdx.RGB_MASK
+    status[base + 1], status[base + 2], status[base + 3] = 1, 2, 3
+    apply_status(sc, bytes(status))
+    assert sc.color_leds[0].is_on is True
+    assert sc.color_leds[0].rgb == [1, 2, 3, 0]
+
+
+# --------------------------------------------------------------------------- #
 # Status parsing — analogue inputs                                             #
 # --------------------------------------------------------------------------- #
 
