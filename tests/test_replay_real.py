@@ -90,6 +90,54 @@ def test_replay_builds_well_formed_model() -> None:
                 assert member.name != "" or member.type < 0
 
 
+# The exact device line-up the autodetect (type-code map + settings parse)
+# produces from the committed recording. Addresses and types are not scrubbed by
+# the anonymiser, so these lock the *startup* path against real bus data.
+_EXPECTED_TYPES = {
+    101: "Smart Detect 360",
+    102: "Smart Controller XL-2",
+    103: "Smart Dimm-2",
+    104: "Smart In 8/24V-1",
+    105: "Smart GSM",
+    106: "Smart In 8/230V",
+    107: "Smart Out 8/R-1",
+    108: "Fanekey",
+    109: "Smart Controller Mini",
+    110: "Smart Controller Touch",
+    113: "Smart Nature",
+}
+
+
+def test_replay_autodetects_expected_devices() -> None:
+    """Startup autodetect maps the recorded type codes to the real line-up."""
+    data = _load()
+    # The committed anonymised fixture is what CI replays; skip the type/feature
+    # assertions when a different (local, site-specific) recording is in use.
+    if _RECORDING != _ANON:
+        pytest.skip("type/feature assertions are pinned to the anon fixture")
+
+    router = asyncio.run(_build(data))
+    by_addr = {m.addr: m for m in router.modules}
+
+    assert {a: m.mod_type for a, m in by_addr.items()} == _EXPECTED_TYPES
+
+    def _covers(addr: int) -> int:  # autodetected (addressable) covers
+        return sum(c.nmbr >= 0 for c in by_addr[addr].covers)
+
+    # Feature autodetect from the settings blocks: covers, analog inputs, fingers.
+    assert _covers(102) == 3  # XL-2
+    assert _covers(107) == 2  # Out 8/R-1
+    assert _covers(110) == 4  # Touch
+    assert len(by_addr[104].analogins) == 6  # In 8/24V-1
+    assert len(by_addr[110].analogins) == 2  # Touch
+    assert len(by_addr[108].fingers) == 1  # Fanekey
+
+    # The analog-output backing slot stays hidden (#7): controllers expose their
+    # analog out as a number, never as a switchable output (type -10, not -1).
+    for addr in (102, 110):
+        assert by_addr[addr].outputs[15].type == -10
+
+
 def test_replay_refreshes_consume_all_recorded_calls() -> None:
     """Build + the recorded refresh cycles consume the whole call log."""
     data = _load()
