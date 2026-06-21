@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.0.4 — 2026-06-21
+
+### Fixed
+- **Short-acknowledgement regression:** a sub-`HEADER_SIZE` response is a
+  payload-less acknowledgement and is now reported as the `b"OK"` sentinel
+  again, exactly as the original synchronous client did. The v2 transport had
+  returned the raw partial bytes instead, so callers that parse the payload
+  treated acknowledgement bytes as data. The visible symptom was the router
+  firmware-file query (which short-acks when no update file is staged) surfacing
+  a garbled "installed/latest version" string. Test
+  `test_short_acknowledgement_returns_sentinel_not_payload` now uses a
+  distinctive short payload so the sentinel and the raw bytes are
+  distinguishable (the previous test used `b"OK"` as the payload and masked the
+  bug).
+
 ## 2.0.3 — 2026-06-21
 
 ### Fixed

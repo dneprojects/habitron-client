@@ -45,9 +45,13 @@ def test_request_crc_returns_payload_and_crc() -> None:
     assert asyncio.run(scenario()) == (b"DATA", 0x1234)
 
 
-def test_short_acknowledgement_returns_partial() -> None:
+def test_short_acknowledgement_returns_sentinel_not_payload() -> None:
+    # A sub-header response is a payload-less ack: the transport must report the
+    # b"OK" sentinel, NOT the raw bytes. Returning the raw partial made callers
+    # that parse the payload (e.g. the router firmware-file version) treat ack
+    # bytes as data. Use a distinctive short payload so the two cases differ.
     async def scenario() -> bytes:
-        async with running(Reply(data=b"OK", close=True)) as sim:
+        async with running(Reply(data=b"FN\nXY", close=True)) as sim:
             async with HabitronClient("127.0.0.1", sim.port) as client:
                 return await client.get_global_descriptions()
 

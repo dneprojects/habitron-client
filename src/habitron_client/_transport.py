@@ -7,11 +7,13 @@ centrally: a failed exchange is retried once on a fresh connection.
 
 Short-acknowledgement assumption
 --------------------------------
-When the hub answers a command with fewer than ``HEADER_SIZE`` bytes it is
-assumed to close the connection immediately (surfacing as ``IncompleteReadError``
-with a non-empty ``partial``). The original synchronous client reported this as a
-hard-coded ``b"OK"``; here the real acknowledgement bytes are returned instead.
-This behaviour should be confirmed against recorded bus captures.
+When the hub answers a command with fewer than ``HEADER_SIZE`` bytes it closes
+the connection immediately (surfacing as ``IncompleteReadError`` with a non-empty
+``partial``). This is a payload-less acknowledgement, reported as the sentinel
+``b"OK"`` exactly as the original synchronous client did. The raw partial bytes
+are deliberately *not* returned: callers that parse the payload (e.g. the router
+firmware-file version query, which short-acks when no update file is staged)
+would otherwise treat acknowledgement bytes as data.
 """
 
 from __future__ import annotations
@@ -142,9 +144,16 @@ class BusConnection:
             header = await reader.readexactly(HEADER_SIZE)
         except asyncio.IncompleteReadError as exc:
             if exc.partial:
-                # Short acknowledgement frame (see module docstring).
+                # Short-acknowledgement frame (see module docstring): the hub
+                # answered with fewer than HEADER_SIZE bytes and closed the
+                # connection. This carries no payload — it must NOT be returned
+                # as data. The original synchronous client reported it as the
+                # sentinel b"OK"; returning the raw partial bytes instead made
+                # callers that parse the payload treat ack bytes as data (e.g.
+                # the router firmware-file query, which short-acks when no update
+                # file is staged, surfaced as a garbled "version").
                 await self._reset()
-                return bytes(exc.partial), 0
+                return b"OK", 0
             raise  # empty read -> connection drop, retried by _round_trip
         body_len = header[LEN_LO_INDEX] | (header[LEN_HI_INDEX] << 8)
         rest = await reader.readexactly(body_len + TRAILER_SIZE)
