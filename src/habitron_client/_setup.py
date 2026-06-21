@@ -8,6 +8,8 @@ polls :func:`async_refresh_system` from its coordinator.
 
 from __future__ import annotations
 
+import logging
+
 from ._parse import parse_definitions, parse_settings
 from ._parse_router import (
     apply_router_status,
@@ -19,6 +21,8 @@ from ._parse_router import (
 )
 from .client import HabitronClient
 from .model import Router
+
+_LOGGER = logging.getLogger(__name__)
 
 # Minimum compact-status length to treat a poll as valid (matches integration).
 _MIN_STATUS_LEN = 10
@@ -57,6 +61,13 @@ async def async_build_system(client: HabitronClient, *, b_uid: str) -> Router:
 
     apply_router_status(router, await client.get_router_status())
     distribute_status(router, sys_status)
+    _LOGGER.debug(
+        "built system %s: router=%r, %d modules (%s)",
+        b_uid,
+        router.name,
+        len(router.modules),
+        ", ".join(sorted({m.mod_type for m in router.modules})),
+    )
     return router
 
 
@@ -70,6 +81,9 @@ async def async_refresh_system(
     """
     sys_status, crc = await client.get_compact_status()
     if crc != last_crc and sys_status and len(sys_status) >= _MIN_STATUS_LEN:
+        _LOGGER.debug("refresh: status changed (crc %s -> %s), applying", last_crc, crc)
         apply_router_status(router, await client.get_router_status())
         distribute_status(router, sys_status)
+    else:
+        _LOGGER.debug("refresh: no change (crc %s)", crc)
     return crc

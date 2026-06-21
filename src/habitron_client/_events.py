@@ -21,6 +21,11 @@ from .model import Module, Router
 
 _LOGGER = logging.getLogger(__name__)
 
+# Reverse map event code -> name, for readable debug logs.
+_EVENT_NAMES: dict[int, str] = {
+    v: k for k, v in vars(HaEvents).items() if isinstance(v, int)
+}
+
 
 def _get_module(router: Router, mod_id: int) -> Module | None:
     """Return the module whose raw (bus) address matches ``mod_id``."""
@@ -49,6 +54,12 @@ def apply_event(
     arg5: int = 0,
 ) -> None:
     """Update the model from a SmartHub event and fire member listeners."""
+    _LOGGER.debug(
+        "event: mod_id=%s type=%s args=%s",
+        mod_id,
+        _EVENT_NAMES.get(evnt, evnt),
+        (arg1, arg2, arg3, arg4, arg5),
+    )
     if mod_id == 0:
         if evnt == HaEvents.FLAG:
             for flg in router.flags:
@@ -153,3 +164,10 @@ def _apply_module_event(
     elif evnt == HaEvents.CNT_VAL:
         module.logic[arg1].value = arg2
         module.logic[arg1].notify()
+    else:
+        _LOGGER.debug(
+            "unhandled module event type %s (args %s) for module %s",
+            _EVENT_NAMES.get(evnt, evnt),
+            (arg1, arg2),
+            module.addr,
+        )

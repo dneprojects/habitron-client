@@ -100,6 +100,12 @@ def parse_module_inventory(
         name_len = int(resp[3])
         mod_name = mod_string[4 : 4 + name_len]
         if mod_typ in MODULE_CODES and _module_kind(mod_typ) != "generic":
+            _LOGGER.debug(
+                "inventory: raddr=%s type=%s name=%r",
+                raddr,
+                MODULE_CODES[mod_typ],
+                mod_name,
+            )
             modules.append(
                 build_module(
                     uid=f"{b_uid}{raddr}",
@@ -108,6 +114,12 @@ def parse_module_inventory(
                     name=mod_name,
                     group=module_grp[raddr - 1],
                 )
+            )
+        else:
+            _LOGGER.debug(
+                "inventory: skipping raddr=%s type=%s (unknown/generic)",
+                raddr,
+                mod_typ.hex(),
             )
         mod_string = mod_string[4 + name_len : len(resp)]
         resp = resp[4 + name_len :]
@@ -221,3 +233,5 @@ def distribute_status(router: Router, sys_status: bytes) -> None:
         module = by_addr.get(mod_addr)
         if module is not None:
             apply_status(module, block)
+        else:
+            _LOGGER.debug("status block for unknown addr %s ignored", mod_addr)

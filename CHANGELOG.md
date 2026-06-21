@@ -9,6 +9,14 @@
   handling is now unified across all modules (no per-module special-casing), so
   the mirror/poll keeps colour LEDs in sync independently of the output events.
 
+### Added
+- Debug logging across the orchestration / parsing / event layers (enable with
+  `logger: habitron_client: debug`): system build summary and per-refresh
+  outcome (`_setup`), module inventory incl. skipped/unknown types and unrouted
+  status blocks (`_parse_router`), one line per applied push event plus a log
+  for unhandled event types (`_events`), and colour-LED state changes from the
+  status (`_parse`). All at DEBUG, change-/event-driven (no per-poll spam).
+
 ## 2.0.0 — 2026-06-20
 
 ### Added

@@ -207,3 +207,10 @@ def test_bad_event_args_are_caught_not_raised() -> None:
     sc = _sc()
     rt = _router_with(sc)
     apply_event(rt, 5, HaEvents.DIM_VAL, 99, 1)  # no dimmer 99 → caught
+
+
+def test_unhandled_event_type_is_ignored() -> None:
+    """An unknown module event type is debug-logged and ignored, not raised."""
+    sc = _sc()
+    rt = _router_with(sc)
+    apply_event(rt, 5, 99, 0, 0)  # 99 = unknown event type → else branch, no-op

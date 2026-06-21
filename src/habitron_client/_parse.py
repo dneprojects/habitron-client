@@ -243,8 +243,18 @@ def _apply_color_leds(m: Module, s: bytes) -> None:
     cled_state = s[MStatIdx.RGB_MASK]
     for cled in m.color_leds:
         base = MStatIdx.RGB_MASK + 3 * cled.nmbr
-        _set(cled, "is_on", bool(cled_state & (0x01 << cled.nmbr)))
-        _set(cled, "rgb", [int(s[base + 1]), int(s[base + 2]), int(s[base + 3]), 0])
+        new_on = bool(cled_state & (0x01 << cled.nmbr))
+        new_rgb = [int(s[base + 1]), int(s[base + 2]), int(s[base + 3]), 0]
+        if cled.is_on != new_on or cled.rgb != new_rgb:
+            _LOGGER.debug(
+                "status colour-LED change: addr=%s cled=%s on=%s rgb=%s",
+                m.addr,
+                cled.nmbr,
+                new_on,
+                new_rgb,
+            )
+        _set(cled, "is_on", new_on)
+        _set(cled, "rgb", new_rgb)
 
 
 def _status_controller(m: Module, s: bytes) -> None:
