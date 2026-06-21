@@ -20,7 +20,7 @@ from ._parse_router import (
     parse_router_definitions,
 )
 from .client import HabitronClient
-from .exceptions import HabitronProtocolError
+from .exceptions import HabitronError, HabitronProtocolError
 from .model import Router
 
 _LOGGER = logging.getLogger(__name__)
@@ -94,15 +94,23 @@ async def async_refresh_system(
     sys_status, crc = await client.get_compact_status()
     if crc != last_crc and sys_status and len(sys_status) >= _MIN_STATUS_LEN:
         _LOGGER.debug("refresh: status changed (crc %s -> %s), applying", last_crc, crc)
+        was_started = router.mirror_started
         apply_router_status(router, await client.get_router_status())
         distribute_status(router, sys_status)
-        if not router.mirror_started:
-            # The hub stops mirroring (its event push) on reboot; restart it so
-            # events resume — the same lightweight recovery the pre-library
-            # integration used. A failure (hub still rebooting) propagates so
-            # the coordinator retries on its next interval.
-            _LOGGER.warning("router mirror not started — restarting it")
-            await client.start_mirror()
+        if was_started and not router.mirror_started:
+            # The mirror went *down* between two polls — i.e. the hub rebooted.
+            # Restart it so the event push resumes (the lightweight recovery the
+            # pre-library integration used). Only act on this up->down edge:
+            # right after setup the mirror is legitimately still coming up
+            # (reported "not started" for a few seconds), and restarting it
+            # there breaks the hub's own start-up sequence. A restart failure is
+            # non-fatal — the hub usually brings the mirror back on its own, and
+            # the next poll will retry the edge if needed.
+            _LOGGER.warning("router mirror stopped (hub reboot) — restarting it")
+            try:
+                await client.start_mirror()
+            except HabitronError as err:
+                _LOGGER.warning("mirror restart failed (will retry next poll): %s", err)
     else:
         _LOGGER.debug("refresh: no change (crc %s)", crc)
     return crc

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.0.3 — 2026-06-21
+
+### Fixed
+- **Setup regression (2.0.2):** `async_refresh_system` only restarts the router
+  mirror on a genuine up→down edge (a hub reboot detected between two polls),
+  not whenever the mirror is reported "not started". Right after setup the hub
+  legitimately reports its mirror as still coming up for a few seconds;
+  restarting it there broke the hub's start-up sequence and made the consumer's
+  first refresh fail (config-entry setup error, retry loop). The restart is now
+  also non-fatal — a failure is logged and retried on the next poll instead of
+  propagating. Regression tests added (`test_setup_refresh.py`).
+
 ## 2.0.2 — 2026-06-21
 
 ### Fixed
