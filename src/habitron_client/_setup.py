@@ -20,6 +20,7 @@ from ._parse_router import (
     parse_router_definitions,
 )
 from .client import HabitronClient
+from .exceptions import HabitronProtocolError
 from .model import Router
 
 _LOGGER = logging.getLogger(__name__)
@@ -37,30 +38,41 @@ async def async_build_system(client: HabitronClient, *, b_uid: str) -> Router:
     """
     router = build_router(b_uid=b_uid)
 
-    parse_router_definitions(router, await client.get_smr())
-    parse_global_descriptions(router, await client.get_global_descriptions())
-    router.modules = parse_module_inventory(
-        await client.get_router_modules(),
-        b_uid=b_uid,
-        router_id=router.id,
-        module_grp=router.module_grp,
-    )
-
-    sys_status, _crc = await client.get_compact_status()
-    for module in router.modules:
-        raddr = module.addr - router.id
-        name_prefix = f"Mod_{module.uid}_{b_uid}"
-        parse_definitions(
-            module, await client.get_module_definitions(raddr), name_prefix=name_prefix
+    # A flaky/rebooting hub can return truncated blocks mid-build; the
+    # fixed-offset parsers would then raise IndexError. Convert that into a
+    # protocol error so the consumer treats the whole build as transient and
+    # retries (rather than failing setup permanently).
+    try:
+        parse_router_definitions(router, await client.get_smr())
+        parse_global_descriptions(router, await client.get_global_descriptions())
+        router.modules = parse_module_inventory(
+            await client.get_router_modules(),
+            b_uid=b_uid,
+            router_id=router.id,
+            module_grp=router.module_grp,
         )
-        parse_settings(module, await client.get_module_settings(raddr))
-        if module.hw_version:
-            # The device identifier is the hardware version (as in the
-            # integration); keep the inventory uid only as a fallback.
-            module.uid = module.hw_version
 
-    apply_router_status(router, await client.get_router_status())
-    distribute_status(router, sys_status)
+        sys_status, _crc = await client.get_compact_status()
+        for module in router.modules:
+            raddr = module.addr - router.id
+            name_prefix = f"Mod_{module.uid}_{b_uid}"
+            parse_definitions(
+                module,
+                await client.get_module_definitions(raddr),
+                name_prefix=name_prefix,
+            )
+            parse_settings(module, await client.get_module_settings(raddr))
+            if module.hw_version:
+                # The device identifier is the hardware version (as in the
+                # integration); keep the inventory uid only as a fallback.
+                module.uid = module.hw_version
+
+        apply_router_status(router, await client.get_router_status())
+        distribute_status(router, sys_status)
+    except IndexError as exc:
+        raise HabitronProtocolError(
+            f"truncated hub response during system build: {exc}"
+        ) from exc
     _LOGGER.debug(
         "built system %s: router=%r, %d modules (%s)",
         b_uid,
@@ -84,6 +96,13 @@ async def async_refresh_system(
         _LOGGER.debug("refresh: status changed (crc %s -> %s), applying", last_crc, crc)
         apply_router_status(router, await client.get_router_status())
         distribute_status(router, sys_status)
+        if not router.mirror_started:
+            # The hub stops mirroring (its event push) on reboot; restart it so
+            # events resume — the same lightweight recovery the pre-library
+            # integration used. A failure (hub still rebooting) propagates so
+            # the coordinator retries on its next interval.
+            _LOGGER.warning("router mirror not started — restarting it")
+            await client.start_mirror()
     else:
         _LOGGER.debug("refresh: no change (crc %s)", crc)
     return crc

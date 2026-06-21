@@ -155,6 +155,7 @@ class BusConnection:
     async def _ensure_connection(self) -> None:
         if self._writer is not None and not self._writer.is_closing():
             return
+        _LOGGER.debug("opening connection to %s:%s", self._host, self._port)
         try:
             async with asyncio.timeout(self._connect_timeout):
                 self._reader, self._writer = await asyncio.open_connection(
@@ -165,6 +166,7 @@ class BusConnection:
             raise HabitronConnectionError(
                 f"cannot connect to {self._host}:{self._port}"
             ) from exc
+        _LOGGER.debug("connected to %s:%s", self._host, self._port)
 
     async def _reset(self) -> None:
         writer = self._writer

@@ -19,6 +19,7 @@ import logging
 from collections.abc import Sequence
 
 from ._indices import MODULE_CODES, MSetIdx, MStatIdx
+from .exceptions import HabitronProtocolError
 from .model import (
     BusMember,
     ColorLed,
@@ -695,6 +696,14 @@ def parse_settings(module: Module, settings: bytes) -> bool:
     """
     if not settings:
         return False
+    if len(settings) <= MSetIdx.AD_STATE:
+        # A flaky/rebooting hub can return a truncated settings block; treat it
+        # as a transient protocol error so the consumer retries instead of
+        # crashing on a fixed-offset read.
+        raise HabitronProtocolError(
+            f"settings block for module {module.addr} truncated "
+            f"({len(settings)} bytes)"
+        )
 
     module.hw_version = (
         settings[MSetIdx.HW_VERS : MSetIdx.HW_VERS_].decode("iso8859-1").strip()

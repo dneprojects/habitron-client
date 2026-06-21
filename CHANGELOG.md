@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.0.2 (unreleased)
+
+### Added
+- `Router.rebooted` and reboot diagnostics: `apply_router_status` now logs a
+  warning when the router mirror stops (hub reboot — the event server needs
+  re-initialising) and reads the hub's reboot flag. Transport logs connection
+  open/established. These make a hub-reboot recovery observable and let the
+  consumer self-heal (the integration reloads its entry on the mirror up→down
+  transition).
+
 ## 2.0.1 — 2026-06-21
 
 ### Fixed

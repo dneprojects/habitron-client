@@ -223,6 +223,7 @@ class Router:
     mode: Flag = field(default_factory=lambda: Flag(name="Mode", nmbr=0, value=0x11))
     sys_ok: bool = True
     mirror_started: bool = True
+    rebooted: bool = False
     max_group: int = 0
     cover_autostop_del: int = 5
     module_grp: list[int] = field(default_factory=list)

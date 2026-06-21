@@ -192,8 +192,19 @@ def apply_router_status(router: Router, status: bytes) -> None:
         / 10,
     )
 
+    prev_mirror = router.mirror_started
+    prev_rebooted = router.rebooted
     router.sys_ok = status[RoutIdx.ERR_SYSTEM] == FALSE_VAL
     router.mirror_started = status[RoutIdx.MIRROR_STARTED] == TRUE_VAL
+    router.rebooted = int(status[RoutIdx.REBOOTED]) != 0
+    if prev_mirror and not router.mirror_started:
+        _LOGGER.warning(
+            "router mirror stopped (hub reboot, rebooted-flag=%s)", router.rebooted
+        )
+    elif not prev_mirror and router.mirror_started:
+        _LOGGER.info("router mirror (re)started")
+    if router.rebooted and not prev_rebooted:
+        _LOGGER.debug("router reports a reboot since last poll")
     if router.states:
         _set(router.states[0], "value", int(router.sys_ok))
         _set(router.states[1], "value", int(router.mirror_started))
