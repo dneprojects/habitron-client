@@ -1,14 +1,27 @@
 # Changelog
 
-## 2.0.2 (unreleased)
+## 2.0.2 — 2026-06-21
+
+### Fixed
+- Hub-reboot recovery: `async_refresh_system` now restarts the router mirror
+  when it finds it stopped (the lightweight, self-healing behaviour of the
+  pre-library integration), so events resume after a SmartHub reboot without a
+  config-entry reload.
+- Flaky/rebooting hub at setup: `async_build_system` wraps the build and
+  `parse_settings` guards its length, raising `HabitronProtocolError` on
+  truncated blocks instead of `IndexError`, so the consumer can retry.
+- Smart Controller analog-output backing slot is hidden (`type = -10`) so it is
+  no longer exposed as an extra switchable output alongside its number entity.
 
 ### Added
-- `Router.rebooted` and reboot diagnostics: `apply_router_status` now logs a
-  warning when the router mirror stops (hub reboot — the event server needs
-  re-initialising) and reads the hub's reboot flag. Transport logs connection
-  open/established. These make a hub-reboot recovery observable and let the
-  consumer self-heal (the integration reloads its entry on the mirror up→down
-  transition).
+- `Router.rebooted` and reboot diagnostics: `apply_router_status` logs a warning
+  when the router mirror stops (hub reboot) and the mirror (re)start, reads the
+  hub's reboot flag, and the transport logs connection open/established. This
+  makes a hub-reboot recovery observable (enable with
+  `logger: habitron_client: debug`).
+- Real-hardware-derived tests covering the full event set (button, switch,
+  output, cover, blind, dimmer, flag, mode) and a startup/autodetect replay that
+  pins the parsed module line-up and feature detection against real bus data.
 
 ## 2.0.1 — 2026-06-21
 

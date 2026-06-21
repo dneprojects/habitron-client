@@ -705,8 +705,7 @@ def parse_settings(module: Module, settings: bytes) -> bool:
         # as a transient protocol error so the consumer retries instead of
         # crashing on a fixed-offset read.
         raise HabitronProtocolError(
-            f"settings block for module {module.addr} truncated "
-            f"({len(settings)} bytes)"
+            f"settings block for module {module.addr} truncated ({len(settings)} bytes)"
         )
 
     module.hw_version = (
