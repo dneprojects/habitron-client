@@ -503,9 +503,13 @@ def parse_definitions(
         ao.type = 8  # analog output
         if not ao.name.strip():
             ao.name = f"{name_prefix} Out16"
-        # Disable the vestigial binary slot so it is not exposed twice.
+        # Hide the vestigial binary slot so it is not exposed as an extra
+        # on/off switch alongside the analogue-output number. Use -10 (the
+        # "repurposed/hidden output" convention, as for cover-backing outputs)
+        # rather than -1, which the switch platform's ``abs(type) == 1`` filter
+        # would still pick up (it equals an unlabelled relay output).
         src.name = ao.name
-        src.type = -1
+        src.type = -10
 
     _set_default_names(module.inputs, "Inp", name_prefix)
     _set_default_names(module.outputs, "Out", name_prefix)

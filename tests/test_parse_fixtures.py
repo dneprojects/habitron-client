@@ -294,8 +294,11 @@ def test_definitions_route_labels_to_members() -> None:
     assert any(c.name == "DirCmd" for c in sc.dir_commands)
     assert any(m.name == "Msg 1" for m in sc.messages)
     assert any(i.name == "Alice" for i in sc.ids)
-    # The SC analogue output (old outputs[15]) is promoted to a typed member.
+    # The SC analogue output (old outputs[15]) is promoted to a typed member,
+    # and the vestigial binary slot is hidden (-10) so the switch platform's
+    # abs(type)==1 filter does not expose it as an extra on/off entity.
     assert sc.analog_outputs[0].type == 8
+    assert sc.outputs[15].type == -10
 
 
 # --------------------------------------------------------------------------- #
