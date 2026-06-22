@@ -195,6 +195,24 @@ def test_get_smhub_update_parses_yaml() -> None:
     assert update["software"]["loglevel"]["console"] == 20
 
 
+def test_get_smhub_update_malformed_yaml_raises_protocol_error() -> None:
+    """A response with control characters becomes a HabitronProtocolError.
+
+    ``yaml.safe_load`` rejects control characters with its own ``YAMLError``;
+    the client must wrap that so callers can treat it as a transient protocol
+    problem rather than an unexpected crash.
+    """
+
+    async def scenario() -> object:
+        response = build_response(b"\x01garbled\x01")
+        async with running(Reply(data=response)) as sim:
+            async with HabitronClient("127.0.0.1", sim.port) as client:
+                return await client.get_smhub_update("1.2.3")
+
+    with pytest.raises(HabitronProtocolError):
+        asyncio.run(scenario())
+
+
 def test_get_smhub_info_invalid_payload_raises() -> None:
     async def scenario() -> object:
         async with running(Reply(data=build_response(b"justastring"))) as sim:

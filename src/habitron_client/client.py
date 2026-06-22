@@ -29,12 +29,30 @@ from ._models import (
 from ._protocol import build_frame
 from ._transport import DEFAULT_CONNECT_TIMEOUT, DEFAULT_PORT, BusConnection
 from .const import Command
-from .exceptions import HabitronBusError, HabitronConnectionError
+from .exceptions import (
+    HabitronBusError,
+    HabitronConnectionError,
+    HabitronProtocolError,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT: float = 10.0
 _ERROR_PREFIX: bytes = b"Error"
+
+
+def _load_hub_yaml(raw: bytes) -> object:
+    """Decode + YAML-parse a hub response, wrapping malformed payloads.
+
+    A flaky/garbled hub response can contain control characters or otherwise
+    invalid YAML; ``yaml`` then raises its own error type. Wrap those in a
+    :class:`HabitronProtocolError` so callers can treat them as a transient
+    protocol problem (retry / skip) like every other bus error.
+    """
+    try:
+        return yaml.safe_load(raw.decode("iso8859-1"))
+    except yaml.YAMLError as exc:
+        raise HabitronProtocolError(f"malformed YAML in hub response: {exc}") from exc
 
 
 def _scramble_token(token: bytes, mac: bytes) -> bytes:
@@ -168,7 +186,7 @@ class HabitronClient:
     async def get_smhub_info(self) -> SmhubInfo:
         """Get basic SmartHub information (validated)."""
         raw = await self._send(const.GET_SMHUB_INFO, timeout=10.0)
-        return validate_smhub_info(yaml.safe_load(raw.decode("iso8859-1")))
+        return validate_smhub_info(_load_hub_yaml(raw))
 
     async def get_smhub_update(self, hbtn_version: str) -> SmhubUpdate:
         """Get current sensor and status values (validated)."""
@@ -182,7 +200,7 @@ class HabitronClient:
             version,
             timeout=8.0,
         )
-        return validate_smhub_update(yaml.safe_load(raw.decode("iso8859-1")))
+        return validate_smhub_update(_load_hub_yaml(raw))
 
     async def get_smhub_version(self) -> bytes:
         """Query the SmartHub firmware string."""

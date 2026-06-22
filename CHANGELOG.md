@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.0.5 — 2026-06-22
+
+### Fixed
+- `get_smhub_update` / `get_smhub_info` now wrap malformed YAML (e.g. a hub
+  response containing control characters) in `HabitronProtocolError` instead of
+  letting `yaml`'s own `YAMLError` propagate. A flaky/garbled diagnostics
+  response previously crashed the consumer's update tick with an unexpected
+  error; it is now a regular protocol error the consumer can treat as transient
+  (retry / skip).
+
 ## 2.0.4 — 2026-06-21
 
 ### Fixed
