@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.0.6 — 2026-06-22
+
+### Fixed
+- **Bus transport now uses a fresh socket per command** (connect → send → read →
+  close), exactly like the original synchronous client. The previous persistent
+  connection could be left shifted by one frame if a single exchange was written
+  but its response never fully read (e.g. cancelled from the outside): every
+  later read then returned the *previous* command's response, surfacing as a
+  recurring "malformed YAML" / "Unexpected error" on the diagnostics poll until
+  the connection was reset. Per-command sockets make that desync structurally
+  impossible — any unread bytes die with the closed socket.
+- Added response-frame validation: the leading marker byte must be `0xA8` and the
+  declared total length (bytes 1/2, little-endian) must match the payload length
+  (bytes 28/29); a mismatch raises `HabitronProtocolError` instead of feeding
+  garbled bytes to the parsers.
+
 ## 2.0.5 — 2026-06-22
 
 ### Fixed

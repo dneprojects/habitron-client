@@ -14,6 +14,7 @@ from habitron_client.const import GET_MODULES
 from habitron_client.exceptions import (
     HabitronBusError,
     HabitronConnectionError,
+    HabitronProtocolError,
     HabitronTimeoutError,
 )
 from sim import Reply, build_response, running, unwrap
@@ -56,6 +57,60 @@ def test_short_acknowledgement_returns_sentinel_not_payload() -> None:
                 return await client.get_global_descriptions()
 
     assert asyncio.run(scenario()) == b"OK"
+
+
+def test_each_command_uses_a_fresh_connection() -> None:
+    # Variant A: one short-lived socket per command. Issuing three requests must
+    # open three separate connections to the hub. A persistent connection would
+    # show a single connection — and could carry an orphaned response from one
+    # command into the next (the off-by-one desync). Per-command sockets make
+    # that structurally impossible: every command starts on a clean stream.
+    async def scenario() -> int:
+        async with running(
+            replies=[
+                Reply(data=build_response(b"A")),
+                Reply(data=build_response(b"B")),
+                Reply(data=build_response(b"C")),
+            ]
+        ) as sim:
+            bus = BusConnection("127.0.0.1", sim.port)
+            assert await bus.request(b"\x01", timeout=2.0) == b"A"
+            assert await bus.request(b"\x02", timeout=2.0) == b"B"
+            assert await bus.request(b"\x03", timeout=2.0) == b"C"
+            await bus.close()
+            return sim.connections
+
+    assert asyncio.run(scenario()) == 3
+
+
+def test_bad_marker_raises_protocol_error() -> None:
+    # A response that does not start with the 0xA8 marker is garbled / misframed.
+    # The transport must reject it as a protocol error instead of handing the
+    # bytes to the parsers (where a leading control byte crashed yaml.safe_load).
+    async def scenario() -> bytes:
+        frame = bytearray(build_response(b"hardware:\n"))
+        frame[0] = 0x01  # corrupt the marker, as a desynced read would surface
+        async with running(Reply(data=bytes(frame))) as sim:
+            async with HabitronClient("127.0.0.1", sim.port) as client:
+                return await client.get_global_descriptions()
+
+    with pytest.raises(HabitronProtocolError, match="marker"):
+        asyncio.run(scenario())
+
+
+def test_inconsistent_length_raises_protocol_error() -> None:
+    # Total length (bytes 1/2) must match payload length (bytes 28/29). A
+    # mismatch means a misframed read; reject it rather than read the wrong
+    # number of bytes.
+    async def scenario() -> bytes:
+        frame = bytearray(build_response(b"PAYLOAD"))
+        frame[1] = (frame[1] + 5) & 0xFF  # declared total length now too large
+        async with running(Reply(data=bytes(frame))) as sim:
+            async with HabitronClient("127.0.0.1", sim.port) as client:
+                return await client.get_global_descriptions()
+
+    with pytest.raises(HabitronProtocolError, match="length"):
+        asyncio.run(scenario())
 
 
 def test_bus_error_is_raised() -> None:

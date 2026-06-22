@@ -32,6 +32,10 @@ def unwrap(frame: bytes) -> bytes:
 def build_response(payload: bytes, crc: int | None = None) -> bytes:
     """Build a full response frame: header + payload + CRC trailer + postfix."""
     header = bytearray(HEADER_SIZE)
+    header[0] = 0xA8  # response marker
+    total = HEADER_SIZE + len(payload) + TRAILER_SIZE
+    header[1] = total & 0xFF  # total length, low byte first
+    header[2] = (total >> 8) & 0xFF
     header[28] = len(payload) & 0xFF
     header[29] = (len(payload) >> 8) & 0xFF
     if crc is None:
@@ -64,6 +68,7 @@ class BusSimulator:
     requests: list[bytes] = field(default_factory=list)
     host: str = "127.0.0.1"
     port: int = 0
+    connections: int = 0
     _server: asyncio.AbstractServer | None = None
 
     async def start(self) -> None:
@@ -78,6 +83,7 @@ class BusSimulator:
     async def _handle(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
+        self.connections += 1
         try:
             while True:
                 try:

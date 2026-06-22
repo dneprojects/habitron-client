@@ -1,9 +1,27 @@
 """Async TCP transport for the Habitron SmartHub.
 
-A single :class:`BusConnection` owns one persistent ``StreamReader``/
-``StreamWriter`` pair. The SmartHub protocol is strictly request/response with
-no multiplexing, so a lock serialises every exchange. Connection loss is handled
-centrally: a failed exchange is retried once on a fresh connection.
+Each command runs on its **own short-lived TCP connection**: connect, send,
+read the response, close. The SmartHub protocol is strictly request/response
+with no multiplexing, and the hub serves one connection at a time. Opening a
+fresh socket per command — exactly as the original synchronous client did —
+makes a desynchronised read stream *structurally impossible*: every command
+starts on a clean stream, and any unread bytes die with the closed socket. A
+lock still serialises commands so overlapping callers cannot run two
+connections against the single-client hub at once.
+
+(The earlier design kept one persistent connection. A single command that was
+written but whose response was never fully read — e.g. an exchange cancelled
+from the outside — left the stream permanently shifted by one frame, so every
+later read returned the *previous* command's response until the connection was
+reset. Per-command sockets remove that failure mode entirely.)
+
+Frame validation
+----------------
+A valid response begins with the marker byte ``0xA8``, followed by a
+little-endian 2-byte total length (low byte first); the payload length is
+carried at offsets 28/29. The marker and a length-consistency check turn a
+garbled response into a clean :class:`HabitronProtocolError` instead of letting
+unexpected bytes reach the parsers.
 
 Short-acknowledgement handling
 ------------------------------
@@ -33,6 +51,7 @@ from ._protocol import (
 from .exceptions import (
     HabitronConnectionError,
     HabitronError,
+    HabitronProtocolError,
     HabitronTimeoutError,
 )
 
@@ -41,9 +60,12 @@ _LOGGER = logging.getLogger(__name__)
 DEFAULT_PORT: int = 7777
 DEFAULT_CONNECT_TIMEOUT: float = 10.0
 
+#: First byte of every valid SmartHub response frame.
+RESPONSE_MARKER: int = 0xA8
+
 
 class BusConnection:
-    """A serialised, self-healing TCP connection to a SmartHub."""
+    """A serialised bus client that uses a fresh socket per command."""
 
     def __init__(
         self,
@@ -59,8 +81,6 @@ class BusConnection:
         self._port = port
         self._connect_timeout = connect_timeout
         self._max_attempts = max_attempts
-        self._reader: asyncio.StreamReader | None = None
-        self._writer: asyncio.StreamWriter | None = None
         self._lock = asyncio.Lock()
 
     async def __aenter__(self) -> BusConnection:
@@ -76,14 +96,18 @@ class BusConnection:
         await self.close()
 
     async def connect(self) -> None:
-        """Open the connection eagerly (also done lazily on first request)."""
+        """Probe reachability by opening and immediately closing a socket.
+
+        There is no persistent connection to keep open; this exists so callers
+        (and ``async with``) can fail fast on an unreachable host, preserving
+        the test-before-setup behaviour.
+        """
         async with self._lock:
-            await self._ensure_connection()
+            _, writer = await self._open()
+            await self._close(writer)
 
     async def close(self) -> None:
-        """Close the connection and release the socket."""
-        async with self._lock:
-            await self._reset()
+        """No-op: each command owns and closes its own socket."""
 
     async def request(self, payload: bytes, *, timeout: float) -> bytes:
         """Send a command and return the response payload bytes."""
@@ -98,17 +122,16 @@ class BusConnection:
         """Fire-and-forget a command without awaiting a response."""
         frame = wrap_command(payload)
         async with self._lock:
+            writer: asyncio.StreamWriter | None = None
             try:
-                await self._ensure_connection()
-                assert self._writer is not None
-                self._writer.write(frame)
-                await self._writer.drain()
+                _, writer = await self._open()
+                writer.write(frame)
+                await writer.drain()
             except (OSError, HabitronError) as exc:
                 _LOGGER.warning("send_only failed: %s", exc)
             finally:
-                # Drop the connection so a possible unread reply cannot pollute
-                # the next request's read.
-                await self._reset()
+                if writer is not None:
+                    await self._close(writer)
 
     async def _round_trip(
         self, frame: bytes, timeout: float, *, with_crc: bool
@@ -116,28 +139,36 @@ class BusConnection:
         async with self._lock:
             last_exc: BaseException | None = None
             for attempt in range(self._max_attempts):
-                await self._ensure_connection()
+                writer: asyncio.StreamWriter | None = None
                 try:
+                    reader, writer = await self._open()
                     async with asyncio.timeout(timeout):
-                        return await self._exchange(frame, with_crc=with_crc)
+                        return await self._exchange(
+                            reader, writer, frame, with_crc=with_crc
+                        )
                 except TimeoutError as exc:
-                    await self._reset()
                     raise HabitronTimeoutError(
                         f"no response from {self._host}:{self._port} "
                         f"within {timeout:g}s"
                     ) from exc
                 except (ConnectionError, EOFError, OSError) as exc:
                     last_exc = exc
-                    await self._reset()
                     _LOGGER.debug("bus error on attempt %d: %s", attempt + 1, exc)
+                finally:
+                    if writer is not None:
+                        await self._close(writer)
             raise HabitronConnectionError(
                 f"lost connection to {self._host}:{self._port} during exchange"
             ) from last_exc
 
-    async def _exchange(self, frame: bytes, *, with_crc: bool) -> tuple[bytes, int]:
-        reader = self._reader
-        writer = self._writer
-        assert reader is not None and writer is not None
+    async def _exchange(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+        frame: bytes,
+        *,
+        with_crc: bool,
+    ) -> tuple[bytes, int]:
         writer.write(frame)
         await writer.drain()
         try:
@@ -152,36 +183,39 @@ class BusConnection:
                 # callers that parse the payload treat ack bytes as data (e.g.
                 # the router firmware-file query, which short-acks when no update
                 # file is staged, surfaced as a garbled "version").
-                await self._reset()
                 return b"OK", 0
             raise  # empty read -> connection drop, retried by _round_trip
+        if header[0] != RESPONSE_MARKER:
+            raise HabitronProtocolError(
+                f"bad response marker 0x{header[0]:02x} from "
+                f"{self._host}:{self._port} (expected 0x{RESPONSE_MARKER:02x})"
+            )
         body_len = header[LEN_LO_INDEX] | (header[LEN_HI_INDEX] << 8)
+        total_len = header[1] | (header[2] << 8)
+        if total_len != HEADER_SIZE + body_len + TRAILER_SIZE:
+            raise HabitronProtocolError(
+                f"inconsistent frame length from {self._host}:{self._port}: "
+                f"header total {total_len}, payload {body_len} implies "
+                f"{HEADER_SIZE + body_len + TRAILER_SIZE}"
+            )
         rest = await reader.readexactly(body_len + TRAILER_SIZE)
         payload = rest[:body_len]
         crc = (rest[body_len + 1] << 8) | rest[body_len] if with_crc else 0
         return payload, crc
 
-    async def _ensure_connection(self) -> None:
-        if self._writer is not None and not self._writer.is_closing():
-            return
-        _LOGGER.debug("opening connection to %s:%s", self._host, self._port)
+    async def _open(
+        self,
+    ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
         try:
             async with asyncio.timeout(self._connect_timeout):
-                self._reader, self._writer = await asyncio.open_connection(
-                    self._host, self._port
-                )
+                return await asyncio.open_connection(self._host, self._port)
         except (OSError, TimeoutError) as exc:
-            await self._reset()
             raise HabitronConnectionError(
                 f"cannot connect to {self._host}:{self._port}"
             ) from exc
-        _LOGGER.debug("connected to %s:%s", self._host, self._port)
 
-    async def _reset(self) -> None:
-        writer = self._writer
-        self._reader = None
-        self._writer = None
-        if writer is not None and not writer.is_closing():
+    async def _close(self, writer: asyncio.StreamWriter) -> None:
+        if not writer.is_closing():
             writer.close()
-            with contextlib.suppress(OSError):
-                await writer.wait_closed()
+        with contextlib.suppress(OSError):
+            await writer.wait_closed()
