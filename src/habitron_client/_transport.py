@@ -5,8 +5,8 @@ A single :class:`BusConnection` owns one persistent ``StreamReader``/
 no multiplexing, so a lock serialises every exchange. Connection loss is handled
 centrally: a failed exchange is retried once on a fresh connection.
 
-Short-acknowledgement assumption
---------------------------------
+Short-acknowledgement handling
+------------------------------
 When the hub answers a command with fewer than ``HEADER_SIZE`` bytes it closes
 the connection immediately (surfacing as ``IncompleteReadError`` with a non-empty
 ``partial``). This is a payload-less acknowledgement, reported as the sentinel
