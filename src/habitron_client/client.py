@@ -26,7 +26,7 @@ from ._models import (
     validate_smhub_info,
     validate_smhub_update,
 )
-from ._protocol import build_frame
+from ._protocol import build_frame, format_smc
 from ._transport import DEFAULT_CONNECT_TIMEOUT, DEFAULT_PORT, BusConnection
 from .const import Command
 from .exceptions import (
@@ -285,6 +285,10 @@ class HabitronClient:
     async def get_module_definitions(self, mod_addr: int) -> bytes:
         """Get a module summary: names, commands, etc."""
         return _raise_on_bus_error(await self._send(const.GET_MODULE_SMC, mod_addr))
+
+    async def get_module_definitions_smc(self, mod_addr: int) -> str:
+        """Get a module summary formatted as ``.smc`` semicolon-separated text."""
+        return format_smc(await self.get_module_definitions(mod_addr))
 
     async def get_module_settings(self, mod_addr: int) -> bytes:
         """Get the settings of a Habitron module."""

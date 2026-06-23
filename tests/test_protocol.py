@@ -10,9 +10,11 @@ from habitron_client._protocol import (
     calc_crc,
     check_crc,
     format_block_output,
+    format_smc,
     wrap_command,
 )
 from habitron_client.const import Command
+from habitron_client.exceptions import HabitronProtocolError
 
 
 def _old_wrap(cmd_string: str) -> bytes:
@@ -101,3 +103,26 @@ def test_format_block_output() -> None:
     lines = out.split(chr(13))
     assert lines[0].startswith("000  00 01 02")
     assert lines[1].startswith("010  0A 0B")
+
+
+def test_format_smc_header_and_lines() -> None:
+    # 7-byte header, then a line whose length is data[5]+5: offset 5 holds 2,
+    # so the line spans 7 bytes (and the loop needs >6 bytes left to run).
+    header = bytes(range(7))
+    line = bytes((20, 21, 22, 23, 24, 2, 26))  # line[5] = 2 -> line_len = 7
+    out = format_smc(header + line)
+    rows = out.split(chr(13))
+    assert rows[0] == "0;1;2;3;4;5;6;"
+    assert rows[1] == "20;21;22;23;24;2;26;"
+
+
+def test_format_smc_too_short_raises() -> None:
+    with pytest.raises(HabitronProtocolError, match="too short"):
+        format_smc(b"\x00\x01\x02")
+
+
+def test_format_smc_truncated_line_raises() -> None:
+    # Header + a line claiming length data[5]+5 = 250+5 but only a few bytes left.
+    bad = bytes(range(7)) + bytes((0, 0, 0, 0, 0, 250, 0))
+    with pytest.raises(HabitronProtocolError, match="malformed"):
+        format_smc(bad)

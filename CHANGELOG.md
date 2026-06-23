@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.0.7 — 2026-06-23
+
+### Added
+- `HabitronClient.get_module_definitions_smc()` returns a module's `.smc`
+  definition formatted as semicolon-separated text. The formatting (7-byte
+  header + variable-length lines, length field at offset 5) now lives in the
+  library (`format_smc`) with length validation: a truncated or garbled
+  response raises `HabitronProtocolError` instead of an uncaught `IndexError`.
+  Moved out of the Home Assistant integration per the thin-wrapper guideline.
+
 ## 2.0.6 — 2026-06-22
 
 ### Fixed

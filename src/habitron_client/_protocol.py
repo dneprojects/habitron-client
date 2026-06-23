@@ -8,6 +8,7 @@ length field position) must not change during the async migration.
 from __future__ import annotations
 
 from .const import Command
+from .exceptions import HabitronProtocolError
 
 # --- Frame geometry -------------------------------------------------------
 
@@ -98,3 +99,33 @@ def format_block_output(byte_str: bytes) -> str:
         result += f"{ptr:03d}  {line}{chr(13)}"
         ptr += 10
     return result
+
+
+def format_smc(data: bytes) -> str:
+    """Format raw module-definition (``.smc``) bytes as semicolon-separated text.
+
+    Layout: a 7-byte header followed by variable-length lines, where each line
+    spans ``data[5] + 5`` bytes (the length field sits at offset 5 of the line).
+    Every byte is emitted as ``<value>;`` and lines are separated by CR.
+
+    A line length that runs past the remaining buffer signals a truncated or
+    garbled response; this raises :class:`HabitronProtocolError` instead of an
+    uncaught ``IndexError``.
+    """
+    if len(data) < 7:
+        raise HabitronProtocolError(
+            f"module definition too short: {len(data)} bytes (need >= 7)"
+        )
+    parts: list[str] = [f"{byte};" for byte in data[:7]]
+    parts.append(chr(13))
+    rest = data[7:]
+    while len(rest) > 6:
+        line_len = rest[5] + 5
+        if line_len > len(rest):
+            raise HabitronProtocolError(
+                f"malformed .smc line length {line_len}, only {len(rest)} bytes left"
+            )
+        parts.extend(f"{byte};" for byte in rest[:line_len])
+        parts.append(chr(13))
+        rest = rest[line_len:]
+    return "".join(parts)
