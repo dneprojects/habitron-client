@@ -164,6 +164,13 @@ def _apply_module_event(
     elif evnt == HaEvents.CNT_VAL:
         module.logic[arg1].value = arg2
         module.logic[arg1].notify()
+    elif evnt == HaEvents.SYS_ERR:
+        # Per-module operate-mode fault bitmask (arg1); arg1 == 0 clears all
+        # faults (module healthy again). arg2 is reserved. The global router
+        # SYS_ERR push (mod_id == 0) is a different contract and never reaches
+        # here. Decode arg1 with habitron_client.decode_module_faults.
+        module.health.value = arg1
+        module.health.notify()
     else:
         _LOGGER.debug(
             "unhandled module event type %s (args %s) for module %s",

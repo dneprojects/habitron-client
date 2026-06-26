@@ -202,6 +202,25 @@ def test_counter_value_event_updates_logic() -> None:
     assert fired[0]
 
 
+def test_sys_err_event_sets_module_health_mask() -> None:
+    sc = _sc()
+    rt = _router_with(sc)
+    fired = _fired(sc.health)
+    apply_event(rt, 5, HaEvents.SYS_ERR, 0x11, 0)  # F1 + F16 active
+    assert sc.health.value == 0x11
+    assert fired[0]
+
+
+def test_sys_err_event_zero_clears_health() -> None:
+    sc = _sc()
+    sc.health.value = 0x80  # a fault was previously active
+    rt = _router_with(sc)
+    fired = _fired(sc.health)
+    apply_event(rt, 5, HaEvents.SYS_ERR, 0, 0)  # arg1 == 0 -> resolved
+    assert sc.health.value == 0
+    assert fired[0]
+
+
 def test_bad_event_args_are_caught_not_raised() -> None:
     """An out-of-range arg is logged and swallowed, not raised."""
     sc = _sc()

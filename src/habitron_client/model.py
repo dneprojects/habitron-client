@@ -146,6 +146,18 @@ class Diagnostic(BusMember):
     value: float = 0.0
 
 
+@dataclass(kw_only=True)
+class Health(BusMember):
+    """A module's operate-mode fault state.
+
+    ``value`` is the raw one-byte fault bitmask last reported by the SmartHub via
+    a ``SYS_ERR`` event (``0`` = the module is healthy). Decode it into the
+    active faults with :func:`habitron_client.decode_module_faults`.
+    """
+
+    value: int = 0
+
+
 @dataclass
 class Area:
     """A bus-defined area (room).
@@ -173,6 +185,10 @@ class Module:
     hw_version: str = ""
     # Daytime/group mode as a notifiable member (entity-bound select).
     mode: Flag = field(default_factory=lambda: Flag(name="Mode", nmbr=0, value=0))
+    # Operate-mode fault bitmask, pushed per module via SYS_ERR (0 = healthy).
+    health: Health = field(
+        default_factory=lambda: Health(name="Health", nmbr=0, value=0)
+    )
     # Scalar module state filled from the status/settings bytes.
     climate_settings: int = 0
     climate_ctl12: int = 1

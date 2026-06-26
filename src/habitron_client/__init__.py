@@ -24,6 +24,7 @@ from .exceptions import (
     HabitronProtocolError,
     HabitronTimeoutError,
 )
+from .faults import MODULE_FAULTS, ModuleFault, decode_module_faults
 from .model import (
     Area,
     BusMember,
@@ -34,6 +35,7 @@ from .model import (
     Finger,
     Flag,
     HbtnCommand,
+    Health,
     Input,
     Led,
     Logic,
@@ -51,6 +53,7 @@ except PackageNotFoundError:  # pragma: no cover - only during local source runs
     __version__ = "0.0.0"
 
 __all__ = [
+    "MODULE_FAULTS",
     "Area",
     "BusMember",
     "ColorLed",
@@ -67,10 +70,12 @@ __all__ = [
     "HabitronProtocolError",
     "HabitronTimeoutError",
     "HbtnCommand",
+    "Health",
     "Input",
     "Led",
     "Logic",
     "Module",
+    "ModuleFault",
     "Output",
     "Router",
     "Sensor",
@@ -84,6 +89,7 @@ __all__ = [
     "async_refresh_system",
     "calc_crc",
     "check_crc",
+    "decode_module_faults",
     "discover_smarthubs",
     "format_block_output",
     "get_host_ip",
