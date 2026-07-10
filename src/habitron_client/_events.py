@@ -140,6 +140,12 @@ def _apply_module_event(
     elif evnt == HaEvents.FINGER:
         module.sensors[0].value = arg1 if arg2 <= 10 else arg1 * -1
         module.sensors[0].notify()
+        # Mirror the normalized finger number into ``sensors[1]`` -- the member
+        # the poll parser ``_status_ekey`` fills -- so poll and event feed the
+        # same source. ``arg2`` uses the raw encoding (>10 means the "disabled"
+        # bit is set), matching the poll's ``fin_val -= 128``.
+        module.sensors[1].value = arg2 if arg2 <= 10 else arg2 - 128
+        module.sensors[1].notify()
         module.fingers[0].user = arg1  # raw user id
         module.fingers[0].value = arg2  # raw finger number
         module.fingers[0].notify()
