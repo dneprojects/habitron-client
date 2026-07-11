@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.0.9 — 2026-07-11
+
+### Changed
+- The ekey **FINGER push event now also updates the finger-number member
+  (`sensors[1]`)**, normalized exactly like the polled status parser, so poll
+  and push feed the same member. Previously the event updated only the
+  identifier (`sensors[0]`) and the combined `fingers[0]` reading, leaving the
+  standalone finger-number sensor to lag until the next poll.
+
+## 2.0.8 — 2026-06-26
+
+### Added
+- Per-module operate-mode fault decoding: `decode_module_faults`, the
+  `ModuleFault` / `MODULE_FAULTS` tables and a `Health` member, plus SYS_ERR
+  push-event handling that maps a module's fault bitmask onto it.
+
 ## 2.0.7 — 2026-06-23
 
 ### Added

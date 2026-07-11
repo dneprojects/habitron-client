@@ -153,7 +153,9 @@ def test_finger_event_sets_identifier_and_finger() -> None:
 def test_finger_event_disabled_user_negates_id() -> None:
     ek = build_module(uid="UID5", addr=105, typ=b"\x1e\x01", name="ekey", group=0)
     rt = _router_with(ek)
-    apply_event(rt, 5, HaEvents.FINGER, 7, 131)  # arg2 > 10 (finger 3, disabled) → negative id
+    apply_event(
+        rt, 5, HaEvents.FINGER, 7, 131
+    )  # arg2 > 10 (finger 3, disabled) → negative id
     assert ek.sensors[0].value == -7
     assert ek.sensors[1].value == 3  # normalized finger (131 - 128), matching the poll
 
