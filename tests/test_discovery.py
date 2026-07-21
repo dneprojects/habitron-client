@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import socket
+import threading
 
 import pytest
 
@@ -147,6 +148,36 @@ def test_discover_smarthubs_socket_error_raises(
 def test_discover_smarthubs_zero_timeout_returns_empty() -> None:
     # Deadline already passed on the first loop iteration -> break, no results.
     assert asyncio.run(discovery.discover_smarthubs(timeout=0.0)) == []
+
+
+def test_discover_smarthubs_runs_get_own_ip_off_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``get_own_ip`` opens a socket, so it must run in an executor thread.
+
+    Calling it inline would block Home Assistant's event loop.
+    """
+    seen: dict[str, int] = {}
+
+    def spy_own_ip() -> str:
+        seen["thread"] = threading.get_ident()
+        return "10.0.0.5"
+
+    monkeypatch.setattr(discovery, "get_own_ip", spy_own_ip)
+
+    async def scenario() -> int:
+        loop = asyncio.get_running_loop()
+
+        async def fake_endpoint(*args: object, **kwargs: object) -> object:
+            return _FakeTransport(), object()
+
+        monkeypatch.setattr(loop, "create_datagram_endpoint", fake_endpoint)
+        await discovery.discover_smarthubs(timeout=0.0)
+        return threading.get_ident()
+
+    loop_thread = asyncio.run(scenario())
+    assert "thread" in seen
+    assert seen["thread"] != loop_thread
 
 
 def test_discover_smarthubs_collects_responses(

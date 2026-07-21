@@ -78,10 +78,12 @@ async def discover_smarthubs(
 ) -> list[dict[str, str]]:
     """Discover SmartHub/SmartServer hardware on the local network."""
     loop = asyncio.get_running_loop()
+    # ``get_own_ip`` opens a socket, so keep it off the event loop.
+    own_ip = await loop.run_in_executor(None, get_own_ip)
     try:
         transport, protocol = await loop.create_datagram_endpoint(
             _DiscoveryProtocol,
-            local_addr=(get_own_ip(), 0),
+            local_addr=(own_ip, 0),
             allow_broadcast=True,
         )
     except OSError as exc:
