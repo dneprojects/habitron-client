@@ -83,11 +83,14 @@ def _module_kind(typ: bytes) -> str:
 
 
 def _base_diags() -> list[Diagnostic]:
-    """Default two-entry diagnostics list shared by most modules."""
-    return [
-        Diagnostic(name="", nmbr=0, type=0),
-        Diagnostic(name="Status", nmbr=0, type=1),
-    ]
+    """Default diagnostics list shared by most modules: the status member.
+
+    Every ``_status_*`` writes ``MODULE_STAT`` to ``diags[0]``, so ``diags[0]``
+    must carry the ``Status`` name the integration binds to. Modules that also
+    report a power temperature (controller, dimm) append a ``PowerTemp`` member
+    at ``diags[1]``, where ``_status_*`` writes ``TEMP_PWR``.
+    """
+    return [Diagnostic(name="Status", nmbr=0, type=1)]
 
 
 def build_module(*, uid: str, addr: int, typ: bytes, name: str, group: int) -> Module:
@@ -124,7 +127,7 @@ def build_module(*, uid: str, addr: int, typ: bytes, name: str, group: int) -> M
             sc.color_leds = [
                 ColorLed(name="", nmbr=i, type=4, rgb=[0, 0, 0, 0]) for i in range(5)
             ]
-        sc.diags = [Diagnostic(name="", nmbr=i, type=0) for i in range(2)]
+        sc.diags = [Diagnostic(name="Status", nmbr=0, type=1)]
         sc.setvalues = [
             SetValue(name="Set temperature", nmbr=0, type=2, value=20.0),
             SetValue(name="Set temperature 2", nmbr=1, type=2, value=20.0),
@@ -156,7 +159,7 @@ def build_module(*, uid: str, addr: int, typ: bytes, name: str, group: int) -> M
         module.color_leds = [
             ColorLed(name="", nmbr=i, type=4, rgb=[0, 0, 0, 0]) for i in range(5)
         ]
-        module.diags = [Diagnostic(name="", nmbr=0, type=0)]
+        module.diags = [Diagnostic(name="Status", nmbr=0, type=1)]
         module.setvalues = [
             SetValue(name="Set temperature", nmbr=0, type=2, value=20.0),
             SetValue(name="Set temperature 2", nmbr=1, type=2, value=20.0),
@@ -177,7 +180,7 @@ def build_module(*, uid: str, addr: int, typ: bytes, name: str, group: int) -> M
     elif kind == "io2":
         module.outputs = [Output(name="", nmbr=i, type=1) for i in range(2)]
         module.inputs = [Input(name="", nmbr=i, type=1) for i in range(2)]
-        module.diags = [Diagnostic(name="", nmbr=0, type=0)]
+        module.diags = [Diagnostic(name="Status", nmbr=0, type=1)]
         module.covers = [Cover(name="", nmbr=-1, type=0)]
     elif kind == "in":
         module.inputs = [Input(name="", nmbr=i, type=1) for i in range(8)]

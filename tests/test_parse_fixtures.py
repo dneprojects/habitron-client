@@ -8,6 +8,8 @@ same bytes into the exact same model values as the pre-library code did, so the
 move into the library is byte-for-byte faithful without needing hardware.
 """
 
+import pytest
+
 from habitron_client._indices import (
     FALSE_VAL,
     TRUE_VAL,
@@ -40,6 +42,50 @@ def _zero_status() -> bytearray:
 def _module(typ: bytes, name: str = "M") -> Module:
     """Build an empty module of ``typ`` via the library factory."""
     return build_module(uid="b1", addr=105, typ=typ, name=name, group=0)
+
+
+# --------------------------------------------------------------------------- #
+# Diagnostics naming — status / power-temperature members                      #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "typ",
+    [
+        b"\x01\x03",  # controller
+        b"\x32\x01",  # mini
+        b"\x0a\x1e",  # io2
+        b"\x0a\x14",  # dimm
+        b"\x0a\x01",  # out
+        b"\x0b\x01",  # in
+    ],
+)
+def test_status_member_named_and_receives_module_status(typ: bytes) -> None:
+    """``diags[0]`` is the "Status" member and receives ``MODULE_STAT``.
+
+    Every ``_status_*`` writes ``MODULE_STAT`` to ``diags[0]``, so its name must
+    be "Status" for every kind -- controllers/minis/io2 used to override the
+    base list without it, leaving the integration unable to bind a status
+    sensor.
+    """
+    module = _module(typ)
+    assert module.diags[0].name == "Status"
+
+    status = _zero_status()
+    status[MStatIdx.MODULE_STAT] = 7
+    apply_status(module, bytes(status))
+    assert module.diags[0].value == 7
+
+
+@pytest.mark.parametrize("typ", [b"\x01\x03", b"\x0a\x14"])  # controller, dimm
+def test_power_temperature_member_is_diags_one(typ: bytes) -> None:
+    """Modules with a power temperature carry "PowerTemp" at ``diags[1]``.
+
+    ``_status_*`` writes ``TEMP_PWR`` to ``diags[1]`` for these kinds, so the
+    name has to sit there, not on the status slot.
+    """
+    module = _module(typ)
+    assert module.diags[1].name == "PowerTemp"
 
 
 # --------------------------------------------------------------------------- #
