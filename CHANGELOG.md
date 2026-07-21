@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.10 — 2026-07-21
+
+### Changed
+- `async_refresh_system` now reads the **router status on every poll** instead of
+  only when the module compact-status CRC changes. Router currents, voltages,
+  channel timeouts and `sys_ok`/health change independently of the modules, so
+  gating their read on the module CRC left those values (and the health repair
+  issue) stale on an otherwise idle bus. The compact-status CRC still gates the
+  (expensive) per-module status distribution. As a side effect the mirror-down
+  (hub reboot) edge is now detected on a quiet bus too.
+
 ## 2.0.9 — 2026-07-11
 
 ### Changed
