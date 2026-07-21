@@ -41,9 +41,22 @@ class ReplayClient:
 
     def __init__(self, calls: list[dict[str, Any]]) -> None:
         self._queue: deque[dict[str, Any]] = deque(calls)
+        self._last_router_status: Any = None
 
     def __getattr__(self, name: str) -> Any:
         async def _replay(*args: Any) -> Any:
+            # ``async_refresh_system`` now reads the router status on every poll,
+            # but this recording was captured under the older logic that read it
+            # only when the compact-status CRC changed. For those byte-stable
+            # cycles the hub would return the same router status again, so serve
+            # the last recorded one instead of consuming an unrelated queued
+            # call. Every recorded call is still replayed, in order.
+            if (
+                name == "get_router_status"
+                and self._last_router_status is not None
+                and (not self._queue or self._queue[0]["method"] != "get_router_status")
+            ):
+                return self._last_router_status
             entry = self._queue.popleft()
             assert entry["method"] == name, (
                 f"call order mismatch: expected {entry['method']}, got {name}"
@@ -51,6 +64,8 @@ class ReplayClient:
             payload = base64.b64decode(entry["bytes_b64"])
             if entry["kind"] == "bytes_crc":
                 return payload, entry["crc"]
+            if name == "get_router_status":
+                self._last_router_status = payload
             return payload
 
         return _replay

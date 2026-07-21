@@ -86,31 +86,44 @@ async def async_build_system(client: HabitronClient, *, b_uid: str) -> Router:
 async def async_refresh_system(
     client: HabitronClient, router: Router, *, last_crc: int | None = None
 ) -> int:
-    """Poll the compact status and update the model in place.
+    """Poll the whole-bus status and update the model in place.
 
-    Returns the status CRC; pass it back as ``last_crc`` next time so an
-    unchanged bus state skips the router-status read and distribution.
+    Returns the compact-status CRC; pass it back as ``last_crc`` next time so an
+    unchanged bus skips the module-status distribution (a full re-parse of every
+    module that fires listeners). The router's *own* status — currents,
+    voltages, channel timeouts, ``sys_ok`` and the mirror flag — is read on every
+    poll regardless: it changes independently of the modules, so gating it on the
+    module CRC used to leave those values (and the health repair) stale on an
+    otherwise idle bus. We have already talked to the hub for the compact status,
+    so the extra router read is cheap.
     """
     sys_status, crc = await client.get_compact_status()
+
+    # Router telemetry is independent of the module compact status, so refresh
+    # it every poll. Reading it unconditionally also lets the mirror-down (hub
+    # reboot) edge be caught on a quiet bus, when no module change would trigger
+    # a router read.
+    was_started = router.mirror_started
+    apply_router_status(router, await client.get_router_status())
+    if was_started and not router.mirror_started:
+        # The mirror went *down* between two polls — i.e. the hub rebooted.
+        # Restart it so the event push resumes (the lightweight recovery the
+        # pre-library integration used). Only act on this up->down edge: right
+        # after setup the mirror is legitimately still coming up (reported "not
+        # started" for a few seconds), and restarting it there breaks the hub's
+        # own start-up sequence. A restart failure is non-fatal — the hub usually
+        # brings the mirror back on its own, and the next poll retries the edge.
+        _LOGGER.warning("router mirror stopped (hub reboot) — restarting it")
+        try:
+            await client.start_mirror()
+        except HabitronError as err:
+            _LOGGER.warning("mirror restart failed (will retry next poll): %s", err)
+
+    # Distributing the compact status re-parses every module and fires their
+    # listeners, so keep skipping it while the bus is byte-stable.
     if crc != last_crc and sys_status and len(sys_status) >= _MIN_STATUS_LEN:
-        _LOGGER.debug("refresh: status changed (crc %s -> %s), applying", last_crc, crc)
-        was_started = router.mirror_started
-        apply_router_status(router, await client.get_router_status())
+        _LOGGER.debug("refresh: module status changed (crc %s -> %s)", last_crc, crc)
         distribute_status(router, sys_status)
-        if was_started and not router.mirror_started:
-            # The mirror went *down* between two polls — i.e. the hub rebooted.
-            # Restart it so the event push resumes (the lightweight recovery the
-            # pre-library integration used). Only act on this up->down edge:
-            # right after setup the mirror is legitimately still coming up
-            # (reported "not started" for a few seconds), and restarting it
-            # there breaks the hub's own start-up sequence. A restart failure is
-            # non-fatal — the hub usually brings the mirror back on its own, and
-            # the next poll will retry the edge if needed.
-            _LOGGER.warning("router mirror stopped (hub reboot) — restarting it")
-            try:
-                await client.start_mirror()
-            except HabitronError as err:
-                _LOGGER.warning("mirror restart failed (will retry next poll): %s", err)
     else:
-        _LOGGER.debug("refresh: no change (crc %s)", crc)
+        _LOGGER.debug("refresh: module status unchanged (crc %s)", crc)
     return crc
