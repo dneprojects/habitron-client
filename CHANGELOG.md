@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.11 — 2026-07-21
+
+### Fixed
+- **Module status diagnostics naming.** ``diags[0]`` — where every ``_status_*``
+  writes ``MODULE_STAT`` — is now named ``Status`` for every module kind. Smart
+  Controller, Mini and IO2 overrode the diagnostics list without a ``Status``
+  name, so a consumer binding by name could not find their status member.
+  Controllers and dimmers now carry ``PowerTemp`` at ``diags[1]`` (where
+  ``TEMP_PWR`` is written) instead of a mislabelled slot. Member numbers are
+  unchanged, so downstream ids stay stable.
+
 ## 2.0.10 — 2026-07-21
 
 ### Changed
