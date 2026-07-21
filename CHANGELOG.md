@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0.12 — 2026-07-21
+
+### Fixed
+- **`discover_smarthubs` no longer blocks the event loop.** It resolves the own
+  IP via ``get_own_ip`` (which opens a socket) in an executor instead of calling
+  it inline before creating the datagram endpoint.
+
 ## 2.0.11 — 2026-07-21
 
 ### Fixed
