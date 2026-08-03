@@ -149,7 +149,10 @@ def parse_global_descriptions(router: Router, resp: bytes) -> None:
         elif content_code == 2815:  # FF 0A: areas
             router.areas.append(Area(nmbr=entry_no, name=entry_name))
         elif content_code == 3071:  # FF 0B: cover autostop counter
-            router.cover_autostop_del = entry_no
+            # 255 is this counter's "switched off" marker, not a 255 s delay.
+            # It is specific to this entry -- other description bytes use the
+            # full range. A delay of 0 is valid and means "stop immediately".
+            router.cover_autostop_del = None if entry_no == 255 else entry_no
         else:
             _LOGGER.warning(
                 "Unexpected description, code: %s %s %s",

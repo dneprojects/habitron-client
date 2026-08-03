@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.0.13 — 2026-08-03
+
+### Fixed
+- **The cover autostop counter's "switched off" marker is now decoded.** The
+  router transmits the delay for switching a cover output off after the end
+  position as a single byte in the ``FF 0B`` description record, and uses
+  ``255`` to mean "no automatic switch-off". The value was passed through raw,
+  so a disabled counter arrived as a 255 second delay. ``Router.cover_autostop_del``
+  is therefore ``int | None`` now, with ``None`` for the disabled case; ``0``
+  stays a valid delay meaning "stop immediately". The marker is specific to this
+  entry -- other description bytes keep using the full range.
+
 ## 2.0.12 — 2026-07-21
 
 ### Fixed

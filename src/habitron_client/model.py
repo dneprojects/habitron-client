@@ -241,7 +241,10 @@ class Router:
     mirror_started: bool = True
     rebooted: bool = False
     max_group: int = 0
-    cover_autostop_del: int = 5
+    #: Seconds to wait before switching a cover output off once the cover has
+    #: reached its end position. ``None`` means the router has the automatic
+    #: switch-off disabled (transmitted as 255); ``0`` is a valid delay.
+    cover_autostop_del: int | None = 5
     module_grp: list[int] = field(default_factory=list)
     chan_list: list[list[int]] = field(default_factory=list)
     modules: list[Module] = field(default_factory=list)

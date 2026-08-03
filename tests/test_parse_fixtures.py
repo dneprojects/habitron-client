@@ -385,6 +385,25 @@ def test_router_descriptions_parses_flags_commands_and_areas() -> None:
     assert rt.cover_autostop_del == 7
 
 
+@pytest.mark.parametrize(
+    ("entry_no", "expected"),
+    [
+        (255, None),  # the counter's "switched off" marker
+        (0, 0),  # a valid delay: stop immediately
+        (7, 7),
+    ],
+)
+def test_router_descriptions_cover_autostop_off_marker(
+    entry_no: int, expected: int | None
+) -> None:
+    """255 disables the automatic switch-off; every other byte is a delay."""
+    rt = build_router(b_uid="ROUTER-1")
+    parse_global_descriptions(
+        rt, _wrap_descriptions([_desc_line(3071, entry_no, b"unused")])
+    )
+    assert rt.cover_autostop_del == expected
+
+
 # --------------------------------------------------------------------------- #
 # Router parsing — SMR definitions block                                       #
 # --------------------------------------------------------------------------- #
