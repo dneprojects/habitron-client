@@ -5,7 +5,7 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError, version
 
 from ._events import apply_event
-from ._models import SmhubInfo, SmhubUpdate
+from ._models import SmhubInfo, SmhubUpdate, hub_mac_addresses
 from ._protocol import calc_crc, check_crc, format_block_output
 from ._setup import async_build_system, async_refresh_system
 from .client import HabitronClient
@@ -96,6 +96,7 @@ __all__ = [
     "format_block_output",
     "get_host_ip",
     "get_own_ip",
+    "hub_mac_addresses",
     "query_smarthub",
     "test_connection",
 ]

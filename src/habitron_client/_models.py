@@ -11,7 +11,7 @@ raising :class:`HabitronProtocolError` otherwise. Parsing always uses
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import TypedDict, cast
+from typing import NotRequired, TypedDict, cast
 
 from .exceptions import HabitronProtocolError
 from .model import HostDiagnostics
@@ -19,7 +19,23 @@ from .model import HostDiagnostics
 # --- GET_SMHUB_INFO -------------------------------------------------------
 
 # Functional syntax required: keys contain spaces.
-SmhubNetwork = TypedDict("SmhubNetwork", {"ip": str, "host": str, "lan mac": str})
+#
+# ``lan mac`` is the hub's identity: the LAN interface exists on every SmartHub
+# (a Raspberry Pi), so it is reported whichever interface currently carries the
+# traffic. ``mac`` is that *active* interface's address -- it flips when the hub
+# moves between LAN and WLAN and must never be used to identify the device.
+# Both it and ``wlan mac`` are optional: only ``lan mac`` is contractually
+# present.
+SmhubNetwork = TypedDict(
+    "SmhubNetwork",
+    {
+        "ip": str,
+        "host": str,
+        "lan mac": str,
+        "wlan mac": NotRequired[str],
+        "mac": NotRequired[str],
+    },
+)
 
 
 class SmhubPlatform(TypedDict):
@@ -131,6 +147,27 @@ def _require_paths(data: object, paths: Sequence[tuple[str, ...]], label: str) -
                     f"{label}: missing key '{'.'.join(path[: depth + 1])}'"
                 )
             node = node[key]
+
+
+def hub_mac_addresses(info: SmhubInfo) -> list[str]:
+    """Return every MAC the hub reports, in the order it reports them.
+
+    A SmartHub can be reached over its LAN or its WLAN interface, and Home
+    Assistant matches devices by MAC connection -- so a consumer registering
+    that device wants all of them, or the hub stays unrecognised on whichever
+    interface it is not currently identified by. Blanks and duplicates are
+    dropped; the values keep the notation the hub used, since the consumer
+    normalises them for its own registry.
+
+    This is *not* the identity: that is ``lan mac`` alone (see ``SmhubNetwork``).
+    """
+    network = info["hardware"]["network"]
+    seen: list[str] = []
+    for key in ("lan mac", "wlan mac", "mac"):
+        value = str(network.get(key, "") or "").strip()
+        if value and value not in seen:
+            seen.append(value)
+    return seen
 
 
 def validate_smhub_info(data: object) -> SmhubInfo:

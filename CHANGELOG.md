@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.0.16 — 2026-08-06
+
+### Added
+- **`hub_mac_addresses()`** returns every MAC the hub reports -- ``lan mac``
+  first, then ``wlan mac`` and the active-interface ``mac``, blanks and
+  duplicates dropped. Home Assistant matches devices by MAC connection, so a
+  hub that moves between LAN and WLAN needs all of them registered or it stays
+  unrecognised on the interface it was not identified by.
+- `SmhubNetwork` now declares ``wlan mac`` and ``mac`` as optional keys, with a
+  note on why only ``lan mac`` may serve as the identity: the LAN interface
+  exists on every SmartHub and is therefore reported whichever interface
+  carries the traffic, while ``mac`` flips with the active one.
+
 ## 2.0.15 — 2026-08-06
 
 ### Added

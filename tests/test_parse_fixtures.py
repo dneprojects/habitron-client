@@ -17,7 +17,11 @@ from habitron_client._indices import (
     MStatIdx,
     RoutIdx,
 )
-from habitron_client._models import parse_host_diagnostics, validate_smhub_update
+from habitron_client._models import (
+    hub_mac_addresses,
+    parse_host_diagnostics,
+    validate_smhub_update,
+)
 from habitron_client._parse import (
     apply_status,
     build_module,
@@ -550,3 +554,29 @@ def test_host_diagnostics_rejects_a_non_numeric_reading() -> None:
 def test_bus_member_diagnostic_flag(type_code: int, expected: bool) -> None:
     """A member reports its own role instead of exposing the wire code."""
     assert Sensor(name="x", nmbr=0, type=type_code).is_diagnostic is expected
+
+
+@pytest.mark.parametrize(
+    ("network", "expected"),
+    [
+        # Active interface duplicates one of the two: reported once.
+        (
+            {"lan mac": "AA:BB", "wlan mac": "CC:DD", "mac": "CC:DD"},
+            ["AA:BB", "CC:DD"],
+        ),
+        # Only the contractual field.
+        ({"lan mac": "AA:BB"}, ["AA:BB"]),
+        # Blanks are not addresses.
+        ({"lan mac": "AA:BB", "wlan mac": "", "mac": None}, ["AA:BB"]),
+        # The identity always comes first.
+        ({"mac": "CC:DD", "lan mac": "AA:BB"}, ["AA:BB", "CC:DD"]),
+    ],
+)
+def test_hub_mac_addresses(network: dict, expected: list[str]) -> None:
+    """Every interface the hub can be reached on, identity first.
+
+    Home Assistant matches devices by MAC connection, so a hub moving between
+    LAN and WLAN must carry both -- while ``lan mac`` stays the sole identity.
+    """
+    info = {"hardware": {"network": {"ip": "", "host": "", **network}}}
+    assert hub_mac_addresses(info) == expected  # type: ignore[arg-type]
