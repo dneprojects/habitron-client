@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.14 — 2026-08-06
+
+### Changed
+- **Declared the project URLs in the package metadata.** PyPI advertised no
+  source repository, so Home Assistant's dependency check could not locate the
+  code and reported "Repo Public", "Security", "PR Link" and "Async Safe" as
+  failed for a single missing field. No code change.
+
 ## 2.0.13 — 2026-08-03
 
 ### Fixed
