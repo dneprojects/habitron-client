@@ -23,6 +23,7 @@ from . import const
 from ._models import (
     SmhubInfo,
     SmhubUpdate,
+    parse_host_diagnostics,
     validate_smhub_info,
     validate_smhub_update,
 )
@@ -34,6 +35,7 @@ from .exceptions import (
     HabitronConnectionError,
     HabitronProtocolError,
 )
+from .model import HostDiagnostics
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -201,6 +203,15 @@ class HabitronClient:
             timeout=8.0,
         )
         return validate_smhub_update(_load_hub_yaml(raw))
+
+    async def get_host_diagnostics(self, hbtn_version: str) -> HostDiagnostics:
+        """Get the hub's host readings as typed values.
+
+        Additive companion to :meth:`get_smhub_update`, which still returns the
+        raw payload: consumers that only want the readings should not have to
+        strip units or convert log levels themselves.
+        """
+        return parse_host_diagnostics(await self.get_smhub_update(hbtn_version))
 
     async def get_smhub_version(self) -> bytes:
         """Query the SmartHub firmware string."""

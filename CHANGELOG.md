@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.0.15 — 2026-08-06
+
+### Added
+- **`BusMember.is_diagnostic`.** Consumers had to compare ``type`` against the
+  raw bus role code (``10``) to tell a diagnostic member from a user-facing one,
+  duplicating protocol knowledge outside the library. The code itself is now
+  private.
+- **`HostDiagnostics` and `HabitronClient.get_host_diagnostics()`.** The hub
+  reports its host readings as strings carrying their unit (``"1500MHz"``,
+  ``"12%"``, ``"55.5°C"``) and its log levels as either ints or numeric strings.
+  Undoing that is wire-format knowledge; it now happens here and yields typed
+  floats and ints. A value that cannot be read as a number raises
+  ``HabitronProtocolError`` instead of reaching the consumer.
+  ``get_smhub_update()`` still returns the raw payload, so this is additive.
+
 ## 2.0.14 — 2026-08-06
 
 ### Changed

@@ -15,8 +15,15 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Final
 
 Listener = Callable[[], None]
+
+
+# Bus role code marking a diagnostic member; exposed through
+# ``BusMember.is_diagnostic`` rather than as a constant, so the wire value stays
+# inside this package.
+_TYPE_DIAGNOSTIC: Final = 10
 
 
 @dataclass(kw_only=True)
@@ -46,6 +53,15 @@ class BusMember:
         """Fire all registered listeners (called by the parser on a change)."""
         for callback in tuple(self._listeners):
             callback()
+
+    @property
+    def is_diagnostic(self) -> bool:
+        """Whether this member reports diagnostics rather than a user value.
+
+        The bus encodes the role in ``type``; consumers should ask this instead
+        of comparing against the raw code, which is protocol detail.
+        """
+        return abs(self.type) == _TYPE_DIAGNOSTIC
 
 
 @dataclass(kw_only=True)
@@ -223,6 +239,23 @@ class SmartController(Module):
     battery: list[Diagnostic] = field(default_factory=list)
     stream_name: str = ""
     client_version: str = "unknown"
+
+
+@dataclass(kw_only=True)
+class HostDiagnostics:
+    """Host readings of a Raspberry-Pi based SmartHub, unit-stripped.
+
+    The hub reports these as strings carrying their unit ("1500MHz", "12%"),
+    which is wire format, not something a consumer should have to undo.
+    """
+
+    cpu_frequency: float
+    cpu_load: float
+    cpu_temperature: float
+    memory_usage: float
+    disk_usage: float
+    log_level_console: int
+    log_level_file: int
 
 
 @dataclass(kw_only=True)

@@ -14,6 +14,7 @@ from collections.abc import Mapping, Sequence
 from typing import TypedDict, cast
 
 from .exceptions import HabitronProtocolError
+from .model import HostDiagnostics
 
 # --- GET_SMHUB_INFO -------------------------------------------------------
 
@@ -142,3 +143,42 @@ def validate_smhub_update(data: object) -> SmhubUpdate:
     """Validate a parsed ``GET_SMHUB_UPDATE`` payload, or raise."""
     _require_paths(data, _UPDATE_PATHS, "SmartHub update")
     return cast(SmhubUpdate, data)
+
+
+def _number(value: object, unit: str, label: str) -> float:
+    """Return a hub reading as a float, dropping the unit it carries."""
+    try:
+        return float(str(value).rstrip(unit))
+    except (TypeError, ValueError) as err:
+        raise HabitronProtocolError(
+            f"SmartHub update: '{label}' is not a number: {value!r}"
+        ) from err
+
+
+def parse_host_diagnostics(update: SmhubUpdate) -> HostDiagnostics:
+    """Turn a validated hub update into typed host readings.
+
+    The hub reports its readings as strings carrying the unit ("1500MHz",
+    "12%", "55.5°C") and its log levels as either ints or numeric strings.
+    Undoing that is wire-format knowledge and belongs here, not in a consumer.
+
+    Raises ``HabitronProtocolError`` when a value cannot be read as a number;
+    the paths themselves are already guaranteed by ``validate_smhub_update``.
+    """
+    hardware = update["hardware"]
+    software = update["software"]
+    return HostDiagnostics(
+        cpu_frequency=_number(
+            hardware["cpu"]["frequency current"], "MHz", "cpu.frequency"
+        ),
+        cpu_load=_number(hardware["cpu"]["load"], "%", "cpu.load"),
+        cpu_temperature=_number(
+            hardware["cpu"]["temperature"], "°C", "cpu.temperature"
+        ),
+        memory_usage=_number(hardware["memory"]["percent"], "%", "memory.percent"),
+        disk_usage=_number(hardware["disk"]["percent"], "%", "disk.percent"),
+        log_level_console=int(
+            _number(software["loglevel"]["console"], "", "loglevel.console")
+        ),
+        log_level_file=int(_number(software["loglevel"]["file"], "", "loglevel.file")),
+    )

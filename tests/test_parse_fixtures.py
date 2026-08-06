@@ -17,6 +17,7 @@ from habitron_client._indices import (
     MStatIdx,
     RoutIdx,
 )
+from habitron_client._models import parse_host_diagnostics, validate_smhub_update
 from habitron_client._parse import (
     apply_status,
     build_module,
@@ -31,7 +32,8 @@ from habitron_client._parse_router import (
     parse_module_inventory,
     parse_router_definitions,
 )
-from habitron_client.model import Cover, Flag, Module
+from habitron_client.exceptions import HabitronProtocolError
+from habitron_client.model import Cover, Flag, Module, Sensor
 
 
 def _zero_status() -> bytearray:
@@ -494,3 +496,57 @@ def test_distribute_status_applies_block_to_addressed_module() -> None:
     block[MStatIdx.OUT_1_8] = 0x01  # output 0 on
     distribute_status(rt, bytes(block))
     assert out.outputs[0].is_on is True
+
+
+# --------------------------------------------------------------------------- #
+# Host diagnostics                                                             #
+# --------------------------------------------------------------------------- #
+
+
+def _hub_update(**overrides: object) -> dict[str, object]:
+    """A hub update payload in the wire format the SmartHub sends."""
+    payload: dict[str, object] = {
+        "hardware": {
+            "cpu": {
+                "frequency current": "1500MHz",
+                "load": "12%",
+                "temperature": "55.5°C",
+            },
+            "memory": {"percent": "60%"},
+            "disk": {"percent": "30%"},
+        },
+        "software": {"loglevel": {"console": "2", "file": 3}},
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_host_diagnostics_strips_the_units() -> None:
+    """The readings arrive with their unit attached; consumers get numbers."""
+    diagnostics = parse_host_diagnostics(
+        validate_smhub_update(_hub_update())  # type: ignore[arg-type]
+    )
+    assert diagnostics.cpu_frequency == 1500.0
+    assert diagnostics.cpu_load == 12.0
+    assert diagnostics.cpu_temperature == 55.5
+    assert diagnostics.memory_usage == 60.0
+    assert diagnostics.disk_usage == 30.0
+    # Log levels come as a string from one firmware and as an int from another.
+    assert diagnostics.log_level_console == 2
+    assert diagnostics.log_level_file == 3
+
+
+def test_host_diagnostics_rejects_a_non_numeric_reading() -> None:
+    """An unusable value is a protocol error, not a silent zero."""
+    payload = _hub_update()
+    payload["hardware"]["cpu"]["load"] = "n/a"  # type: ignore[index]
+    with pytest.raises(HabitronProtocolError):
+        parse_host_diagnostics(validate_smhub_update(payload))  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("type_code", "expected"), [(10, True), (-10, True), (2, False)]
+)
+def test_bus_member_diagnostic_flag(type_code: int, expected: bool) -> None:
+    """A member reports its own role instead of exposing the wire code."""
+    assert Sensor(name="x", nmbr=0, type=type_code).is_diagnostic is expected
