@@ -9,14 +9,17 @@ the config-entry first refresh fail on a freshly-set-up hub.
 """
 
 import asyncio
+import base64
+import json
+import pathlib
 
 import pytest
 
 from habitron_client import _setup
 from habitron_client._indices import FALSE_VAL, TRUE_VAL, RoutIdx
 from habitron_client._parse_router import build_router
-from habitron_client._setup import async_refresh_system
-from habitron_client.exceptions import HabitronConnectionError
+from habitron_client._setup import async_build_system, async_refresh_system
+from habitron_client.exceptions import HabitronConnectionError, HabitronProtocolError
 
 
 def _router_status(*, mirror_started: bool) -> bytes:
@@ -144,3 +147,62 @@ def test_module_distribution_skipped_when_crc_unchanged(
 
     _refresh(client, router, last_crc=0x0001)  # changed -> distributed once
     assert calls == 1
+
+
+# ---------------------------------------------------------------------------
+# async_build_system: descriptions unavailable vs. genuinely empty
+# ---------------------------------------------------------------------------
+
+
+def _recorded_smr() -> bytes:
+    """The router definition block from the committed recording fixture."""
+    data = json.loads(
+        (pathlib.Path(__file__).parent / "fixtures" / "anon_recording.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    for entry in data["calls"]:
+        if entry["method"] == "get_smr":
+            return base64.b64decode(entry["bytes_b64"])
+    raise AssertionError("recording has no get_smr call")
+
+
+class _PastGuard(Exception):
+    """Raised by the stub as soon as the build proceeds past the guard."""
+
+
+class _DescriptionsClient:
+    """Answers the first two reads, then reports how far the build got."""
+
+    def __init__(self, descriptions: bytes) -> None:
+        self._descriptions = descriptions
+
+    async def get_smr(self) -> bytes:
+        return _recorded_smr()
+
+    async def get_global_descriptions(self) -> bytes:
+        return self._descriptions
+
+    def __getattr__(self, name: str):
+        async def _stop(*args: object, **kwargs: object) -> None:
+            raise _PastGuard(name)
+
+        return _stop
+
+
+def test_build_fails_when_descriptions_unavailable() -> None:
+    """An empty payload means "could not read", not "there are no lists".
+
+    Building on it would drop every flag, collective command and area entity,
+    so the build must fail and let the consumer retry instead.
+    """
+    client = _DescriptionsClient(b"")
+    with pytest.raises(HabitronProtocolError, match="unavailable"):
+        asyncio.run(async_build_system(client, b_uid="UID"))  # type: ignore[arg-type]
+
+
+def test_build_accepts_a_genuinely_empty_description_table() -> None:
+    """The 4-byte header ("no lists") stays a valid answer for a new system."""
+    client = _DescriptionsClient(b"\x00\x00\x00\x00")
+    with pytest.raises(_PastGuard):  # guard passed, build moved on
+        asyncio.run(async_build_system(client, b_uid="UID"))  # type: ignore[arg-type]

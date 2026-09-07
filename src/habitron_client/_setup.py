@@ -28,6 +28,12 @@ _LOGGER = logging.getLogger(__name__)
 # Minimum compact-status length to treat a poll as valid (matches integration).
 _MIN_STATUS_LEN = 10
 
+# A valid description answer always carries at least the 4-byte table header,
+# even when the router holds no lists at all ("0 entries"). The hub replies with
+# an empty payload when it could not read the descriptions from the router, so
+# anything shorter means "unavailable" rather than "there are none".
+_MIN_DESCRIPTIONS_LEN = 4
+
 
 async def async_build_system(client: HabitronClient, *, b_uid: str) -> Router:
     """Connect's worth of reads → a fully-parsed :class:`Router` model.
@@ -44,7 +50,15 @@ async def async_build_system(client: HabitronClient, *, b_uid: str) -> Router:
     # retries (rather than failing setup permanently).
     try:
         parse_router_definitions(router, await client.get_smr())
-        parse_global_descriptions(router, await client.get_global_descriptions())
+        descriptions = await client.get_global_descriptions()
+        if len(descriptions) < _MIN_DESCRIPTIONS_LEN:
+            # Building with empty lists would drop every flag, collective
+            # command and area entity. Fail the build instead, so the consumer
+            # retries and keeps what it already has registered.
+            raise HabitronProtocolError(
+                "hub reports the router descriptions as unavailable"
+            )
+        parse_global_descriptions(router, descriptions)
         router.modules = parse_module_inventory(
             await client.get_router_modules(),
             b_uid=b_uid,
