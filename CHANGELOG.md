@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.0.17 — 2026-09-07
+
+### Fixed
+- **An unavailable description answer is no longer read as "no lists".** The hub
+  replies to ``get_global_descriptions()`` with an empty payload when it could
+  not read the router's areas, global flags and collective commands. A valid
+  answer always carries at least the 4-byte table header — even for a router
+  that genuinely holds no lists — so the two are distinguishable.
+  ``async_build_system`` now raises ``HabitronProtocolError`` on a short payload
+  instead of building a model with empty lists, which would drop every flag,
+  collective-command and area entity. The consumer already treats that as
+  transient (Home Assistant maps it to ``ConfigEntryNotReady``), so it retries
+  and keeps what it has registered.
+
 ## 2.0.16 — 2026-08-06
 
 ### Added
