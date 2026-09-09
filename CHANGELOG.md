@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.18 — 2026-09-09
+
+### Fixed
+- **A module's stored messages are no longer listed once per configured
+  language.** Labels arrive repeated for every language the module is
+  configured for, all carrying the same message id in ``arg_code``. The GSM
+  paths already kept the german set only; the general message path did not, so
+  ``module.messages`` held one entry per language and a consumer offering that
+  list showed each message two or more times. The language filter now applies
+  to all label lines of type 254.
+
 ## 2.0.17 — 2026-09-07
 
 ### Fixed

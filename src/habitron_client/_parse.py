@@ -575,9 +575,13 @@ def _process_message_label(
     module: Module, text: str, arg_code: int, line: bytes
 ) -> None:
     """Handle line[0]==254 (message / GSM-number description)."""
+    if int(line[4]) != 1:
+        # Every label is repeated once per configured language, all carrying the
+        # same arg_code. Keeping only the german set yields one entry per
+        # message id, as the descriptor path above already does.
+        return
     if module.mod_type == "Smart GSM":
-        if int(line[4]) == 1:  # german entries only
-            module.gsm_numbers.append(HbtnCommand(name=text, nmbr=arg_code))
+        module.gsm_numbers.append(HbtnCommand(name=text, nmbr=arg_code))
     else:
         module.messages.append(HbtnCommand(name=text, nmbr=arg_code))
 

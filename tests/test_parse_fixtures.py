@@ -336,6 +336,7 @@ def test_definitions_route_labels_to_members() -> None:
         _name_line(255, 5, 136, b"area"),  # module area = line[1] = 5
         _name_line(253, 0, 7, b"DirCmd"),  # direct command
         _name_line(254, 0, 3, b"Msg 1"),  # message
+        _name_line(254, 0, 3, b"Msg 1 (en)", lang=2),  # same id, other language
         _name_line(252, 0, 1, b"Alice"),  # finger id
     ]
     assert parse_definitions(sc, _names_response(lines)) is True
@@ -344,7 +345,9 @@ def test_definitions_route_labels_to_members() -> None:
     assert flag.nmbr == 1
     assert sc.area == 5
     assert any(c.name == "DirCmd" for c in sc.dir_commands)
-    assert any(m.name == "Msg 1" for m in sc.messages)
+    # One entry per message id: the non-german repeat of the same arg_code is
+    # not a second message and must not show up as one.
+    assert [(m.nmbr, m.name) for m in sc.messages] == [(3, "Msg 1")]
     assert any(i.name == "Alice" for i in sc.ids)
     # The SC analogue output (old outputs[15]) is promoted to a typed member,
     # and the vestigial binary slot is hidden (-10) so the switch platform's
