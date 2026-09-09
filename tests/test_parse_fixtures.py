@@ -321,6 +321,25 @@ def _name_line(
     return bytes([sub_code, area, 235, arg_code, lang, line_len - 5, 0, 0]) + payload
 
 
+def test_gsm_area_label_is_not_a_message() -> None:
+    """A GSM module's area label stays an area and does not become a message.
+
+    The GSM branch takes every descriptor line it is offered, so a label that
+    means something else -- the area every module carries -- would otherwise
+    show up as a phantom entry in the module's message list.
+    """
+    gsm = Module(
+        uid="MOD-GSM", addr=105, typ=b"\x1e\x03", name="GSM", mod_type="Smart GSM"
+    )
+    lines = [
+        _name_line(255, 4, 136, b"Hallway"),  # module area, not a message
+        _name_line(255, 0, 3, b"Alarm"),  # an actual message
+    ]
+    assert parse_definitions(gsm, _names_response(lines)) is True
+    assert gsm.area == 4
+    assert [(m.nmbr, m.name) for m in gsm.messages] == [(3, "Alarm")]
+
+
 def _names_response(lines: list[bytes]) -> bytes:
     """Wrap label lines in the (non-SC) definitions header."""
     header = bytes([0, 0, 0, len(lines) & 0xFF, (len(lines) >> 8) & 0xFF, 0, 0])

@@ -591,7 +591,13 @@ def _process_descriptor_label(
 ) -> None:
     """Handle line[0]==255 (interface descriptor) with flat dispatch."""
     try:
-        if module.mod_type == "Smart GSM" and int(line[4]) == 1:
+        if arg_code == 136:  # module area -- every module carries one
+            module.area = line[1]
+        elif module.mod_type == "Smart GSM" and int(line[4]) == 1:
+            # A GSM module keeps its messages here rather than in the type-254
+            # lines, which carry its phone numbers. The branch is broad -- it
+            # takes every remaining descriptor line -- so anything a GSM module
+            # also labels has to be claimed ahead of it, as the area is above.
             module.messages.append(HbtnCommand(name=text, nmbr=arg_code))
         elif 10 <= arg_code < 18:  # module buttons
             inp = module.inputs[arg_code - 10]
@@ -621,8 +627,6 @@ def _process_descriptor_label(
                     value=0,
                 )
             )
-        elif arg_code == 136:  # module area
-            module.area = line[1]
         elif 140 <= arg_code < 173:  # visual commands (max 32)
             module.vis_commands.append(
                 HbtnCommand(name=text[2:], nmbr=ord(text[1]) * 256 + ord(text[0]))

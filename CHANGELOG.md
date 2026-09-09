@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.19 — 2026-09-09
+
+### Fixed
+- **A GSM module's area label is no longer listed as one of its messages.** A
+  Smart GSM module keeps its messages in the type-255 descriptor lines, and the
+  branch that collects them took every such line it was offered -- including
+  the area label (``arg_code`` 136) every module carries. It appeared as a
+  phantom entry in ``module.messages``, and ``module.area`` was left unset for
+  GSM modules because the area case sat behind that branch and was never
+  reached.
+
 ## 2.0.18 — 2026-09-09
 
 ### Fixed
