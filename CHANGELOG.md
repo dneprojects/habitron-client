@@ -1,5 +1,52 @@
 # Changelog
 
+## 2.1.0 — 2026-09-14
+
+### Added
+- **The SmartHub itself is now part of the device model.** The library modelled
+  everything *behind* the hub (`Router`, `Module`, every `BusMember`) but not
+  the hub, so its data left in three unrelated shapes -- the raw `SmhubInfo`
+  mapping, the `HostDiagnostics` dataclass and the free `hub_mac_addresses()`
+  helper -- and every consumer reassembled them itself. The new `SmartHub`
+  dataclass carries what the hub reports about itself (`lan_mac`, `macs`,
+  `hostname`, `platform`, `version`, `slug`/`is_addon`) plus its host readings
+  as ordinary `BusMember` objects, so a consumer binds entities to them exactly
+  as it does for a module.
+- **`async_build_hub(client)`** reads the hub info once and returns that model,
+  including the host readings the platform exposes. Which platform reports
+  which readings is hardware knowledge and now lives next to the parser: a hub
+  that reports none (anything but a Raspberry Pi board) yields empty member
+  lists rather than placeholders.
+- **`async_refresh_hub(client, hub, *, hbtn_version=...)`** polls the host
+  readings and updates the model in place, firing the per-member listeners for
+  everything that changed -- the same contract `async_refresh_system` gives the
+  bus. The first successful poll notifies every member, so a reading that
+  happens to equal its dataclass default (an unchanged CPU frequency, a log
+  level of 0) is published instead of staying silent until some other value
+  moves. `SmartHub.host_valid` says whether a poll has ever succeeded.
+- The "not an add-on" sentinel the firmware reports for `software.slug` is
+  undone here rather than in each consumer, and a `null` `lan mac` (a hub with
+  no LAN interface configured) becomes the empty string.
+- **The hub's identity is derived here now, not by each consumer.**
+  `normalise_mac()` turns a reported address into the bare lower-case form the
+  model keys by, and refuses anything that is not an address -- a redaction, an
+  IP, the all-zero placeholder a consumer holds before the hub has answered, or
+  the broadcast address. `SmartHub.uid` applies it to `lan_mac` and is the
+  `b_uid` to hand to `async_build_system()`; it is empty when the hub reported
+  no usable address, which is a real state and leaves the fallback to the
+  consumer. `SmartHub.macs` is filtered the same way, so the list can be
+  registered as device connections unchanged.
+
+  This closes a split that had already drifted: the rule existed twice outside
+  the library, once with validation and once as a bare `.lower()`, so a hub
+  reporting `00:00:00:00:00:00` got a working id in one consumer and a shared
+  one in the other. The bare lower-case spelling is now a public contract --
+  consumers key their device registries by it, so it can only change in a major
+  release.
+
+Purely additive: `async_build_system` still returns a `Router` and no existing
+signature changed.
+
 ## 2.0.19 — 2026-09-09
 
 ### Fixed
