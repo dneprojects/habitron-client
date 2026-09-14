@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.3.0 — 2026-09-14
+
+### Added
+The last bus semantics a consumer still had to know. With these, an integration
+can address the bus without holding a single wire value of its own.
+
+- **`client.set_daytime_mode(grp_no, daytime)`** and
+  **`client.set_alarm_mode(grp_no, alarm)`**. The bus folds two unrelated
+  settings -- the alarm state and day/night -- into one argument of
+  `SET_GROUP_MODE`, as four values. Those values (`GROUP_MODE_DAY` and friends,
+  also exported) are protocol detail and now live next to the command.
+- **`Module.led_output(nmbr)`**. A module's indicator LEDs have no command of
+  their own; they continue the output numbering, so the first LED is the output
+  after the last real one. Where that boundary sits depends on the module, so
+  the module answers it rather than every caller counting outputs.
+- **`Module.ANALOG_OUT_CHANNEL`**. An analogue output is addressed as a dimmer
+  channel. A `ClassVar`, so it stays off the dataclass fields.
+- **`client.power_cycle_channel(channel)`**. Down, wait, up. The pause is part
+  of the operation: the modules on the channel have to lose power long enough
+  to restart, so a caller sending down and up back to back cycles nothing.
+
+Purely additive; nothing existing changed.
+
 ## 2.2.0 — 2026-09-14
 
 ### Changed
