@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 
+from ._models import apply_host_diagnostics, parse_smhub_info
 from ._parse import parse_definitions, parse_settings
 from ._parse_router import (
     apply_router_status,
@@ -21,7 +22,7 @@ from ._parse_router import (
 )
 from .client import HabitronClient
 from .exceptions import HabitronError, HabitronProtocolError
-from .model import Router
+from .model import Router, SmartHub
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -141,3 +142,42 @@ async def async_refresh_system(
     else:
         _LOGGER.debug("refresh: module status unchanged (crc %s)", crc)
     return crc
+
+
+async def async_build_hub(client: HabitronClient) -> SmartHub:
+    """One read's worth → a :class:`SmartHub` describing the hub itself.
+
+    Companion to :func:`async_build_system`, which builds everything *behind*
+    the hub. Kept separate on purpose: the two answer different queries, and a
+    consumer that registers the hub as its own device wants it before it starts
+    the much longer bus build -- so a hub that answers but whose bus is still
+    coming up can already be shown.
+    """
+    hub = parse_smhub_info(await client.get_smhub_info())
+    _LOGGER.debug(
+        "built hub %s: platform=%r, version=%r, %d host readings",
+        hub.lan_mac or "<no lan mac>",
+        hub.platform,
+        hub.version,
+        len(hub.host_members),
+    )
+    return hub
+
+
+async def async_refresh_hub(
+    client: HabitronClient, hub: SmartHub, *, hbtn_version: str
+) -> None:
+    """Poll the hub's host readings and update the model in place.
+
+    Fires the per-member listeners for everything that changed, exactly as
+    :func:`async_refresh_system` does for the bus. There is nothing to return:
+    the hub has no status CRC to gate on, and its readings move on almost every
+    poll anyway.
+
+    A platform that reports no host readings is skipped without a wire round
+    trip. Errors are raised, not swallowed -- how a failed host poll should
+    affect the rest of a consumer's update cycle is the consumer's call.
+    """
+    if not hub.host_members:
+        return
+    apply_host_diagnostics(hub, await client.get_host_diagnostics(hbtn_version))

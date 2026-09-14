@@ -7,7 +7,12 @@ from importlib.metadata import PackageNotFoundError, version
 from ._events import apply_event
 from ._models import SmhubInfo, SmhubUpdate, hub_mac_addresses
 from ._protocol import calc_crc, check_crc, format_block_output
-from ._setup import async_build_system, async_refresh_system
+from ._setup import (
+    async_build_hub,
+    async_build_system,
+    async_refresh_hub,
+    async_refresh_system,
+)
 from .client import HabitronClient
 from .const import Command
 from .discovery import (
@@ -46,6 +51,8 @@ from .model import (
     Sensor,
     SetValue,
     SmartController,
+    SmartHub,
+    normalise_mac,
 )
 
 try:
@@ -83,11 +90,14 @@ __all__ = [
     "Sensor",
     "SetValue",
     "SmartController",
+    "SmartHub",
     "SmhubInfo",
     "SmhubUpdate",
     "__version__",
     "apply_event",
+    "async_build_hub",
     "async_build_system",
+    "async_refresh_hub",
     "async_refresh_system",
     "calc_crc",
     "check_crc",
@@ -97,6 +107,7 @@ __all__ = [
     "get_host_ip",
     "get_own_ip",
     "hub_mac_addresses",
+    "normalise_mac",
     "query_smarthub",
     "test_connection",
 ]

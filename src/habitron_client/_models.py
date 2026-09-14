@@ -10,11 +10,12 @@ raising :class:`HabitronProtocolError` otherwise. Parsing always uses
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from typing import NotRequired, TypedDict, cast
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from typing import Final, NotRequired, TypedDict, cast
 
 from .exceptions import HabitronProtocolError
-from .model import HostDiagnostics
+from .model import Diagnostic, HostDiagnostics, Sensor, SmartHub, normalise_mac
 
 # --- GET_SMHUB_INFO -------------------------------------------------------
 
@@ -55,6 +56,10 @@ class SmhubInfoSoftware(TypedDict):
     """``software`` section of a ``GET_SMHUB_INFO`` payload."""
 
     version: str
+    #: Ingress slug of the hub's own add-on. Only a hub running as a Home
+    #: Assistant add-on has one; the others either omit the key or report the
+    #: literal sentinel "none", so it is not part of the validated contract.
+    slug: NotRequired[str]
 
 
 class SmhubInfo(TypedDict):
@@ -219,3 +224,132 @@ def parse_host_diagnostics(update: SmhubUpdate) -> HostDiagnostics:
         ),
         log_level_file=int(_number(software["loglevel"]["file"], "", "loglevel.file")),
     )
+
+
+# --- the hub itself -------------------------------------------------------
+
+# Role codes stamped on the hub's host readings. These are not real bus members
+# -- the hub has no descriptor for them -- but they are handed out as
+# ``BusMember`` objects, so they carry the codes that make
+# ``BusMember.is_diagnostic`` answer correctly: the diagnostic role for the CPU
+# readings, the plain sensor role for memory/disk usage and the log levels.
+_HOST_DIAG_ROLE: Final = 10
+_HOST_SENSOR_ROLE: Final = 2
+
+# Only Raspberry-Pi based hubs report host readings; other platforms answer
+# without them. Matched on the prefix because the hub appends its board
+# revision ("Raspberry Pi 4", "Raspberry Pi 5", ...).
+_HOST_DIAG_PLATFORM: Final = "Raspberry Pi"
+
+
+@dataclass(frozen=True)
+class _HostReading:
+    """One host reading: which list it belongs in and how to read its value."""
+
+    group: str
+    name: str
+    value_of: Callable[[HostDiagnostics], float]
+
+
+# Single source of truth for the hub's host readings: both the member creation
+# in ``parse_smhub_info`` and the value update in ``apply_host_diagnostics`` run
+# off this table, so the two cannot drift apart. The names are part of the
+# public model -- a consumer keys its entity descriptions by them.
+_HOST_READINGS: Final[tuple[_HostReading, ...]] = (
+    _HostReading("diags", "CPU Frequency", lambda host: host.cpu_frequency),
+    _HostReading("diags", "CPU load", lambda host: host.cpu_load),
+    _HostReading("diags", "CPU Temperature", lambda host: host.cpu_temperature),
+    _HostReading("sensors", "Memory usage", lambda host: host.memory_usage),
+    _HostReading("sensors", "Disk usage", lambda host: host.disk_usage),
+    _HostReading(
+        "loglevels", "Logging level console", lambda host: host.log_level_console
+    ),
+    _HostReading("loglevels", "Logging level file", lambda host: host.log_level_file),
+)
+
+
+def _readings_in(group: str) -> tuple[_HostReading, ...]:
+    """Return the table rows belonging to one member list."""
+    return tuple(reading for reading in _HOST_READINGS if reading.group == group)
+
+
+def parse_smhub_info(info: SmhubInfo) -> SmartHub:
+    """Turn a validated ``GET_SMHUB_INFO`` payload into a :class:`SmartHub`.
+
+    Assembling the hub's own data into one object is wire-format work, the same
+    as :func:`parse_host_diagnostics`: the payload spreads it over three
+    sections, reports "no add-on" as a sentinel string and may answer ``null``
+    for an address. A consumer should receive a hub, not a nested mapping.
+
+    The host readings are created empty here and filled by
+    :func:`apply_host_diagnostics` on the first poll; ``SmartHub.host_valid``
+    says which of the two states the values are in.
+    """
+    hardware = info["hardware"]
+    software = info["software"]
+    network = hardware["network"]
+
+    # Present by contract, but null on a hub with no LAN interface configured.
+    # "" is the "no identity" case a consumer expects; None would break every
+    # string operation it performs on the value.
+    lan_mac = str(network["lan mac"] or "").strip()
+    # The firmware reports the literal sentinel "none" (or omits the key) when
+    # the hub does not run as an add-on. Undoing that is wire knowledge and
+    # belongs here rather than in every consumer.
+    slug = str(software.get("slug", "") or "").strip()
+    if slug == "none":
+        slug = ""
+
+    hub = SmartHub(
+        lan_mac=lan_mac,
+        # Filtered to real addresses: the consumer registers these directly as
+        # device connections, and a redaction or a firmware placeholder would
+        # match every other device reporting the same thing.
+        macs=[mac for mac in hub_mac_addresses(info) if normalise_mac(mac)],
+        hostname=network["host"],
+        platform=hardware["platform"]["type"],
+        version=software["version"],
+        slug=slug,
+    )
+    if hub.platform.startswith(_HOST_DIAG_PLATFORM):
+        hub.diags = [
+            Diagnostic(name=reading.name, nmbr=nmbr, type=_HOST_DIAG_ROLE)
+            for nmbr, reading in enumerate(_readings_in("diags"))
+        ]
+        hub.sensors = [
+            Sensor(name=reading.name, nmbr=nmbr, type=_HOST_SENSOR_ROLE)
+            for nmbr, reading in enumerate(_readings_in("sensors"))
+        ]
+        hub.loglevels = [
+            Sensor(name=reading.name, nmbr=nmbr, type=_HOST_SENSOR_ROLE)
+            for nmbr, reading in enumerate(_readings_in("loglevels"))
+        ]
+    return hub
+
+
+def apply_host_diagnostics(hub: SmartHub, host: HostDiagnostics) -> None:
+    """Write host readings into the hub's members, firing their listeners.
+
+    The per-member notification is the same contract the bus members have, so a
+    consumer subscribes to a hub reading exactly as it subscribes to a module
+    sensor.
+
+    On the first successful poll *every* member is notified, not just the ones
+    whose value moved: the members start at their dataclass defaults, and a
+    reading that happens to match its default (an unchanged CPU frequency, a log
+    level of 0) would otherwise never fire -- leaving a consumer that renders an
+    unread member as "unknown" stuck on it until some other value moves.
+    """
+    first_poll = not hub.host_valid
+    hub.host_valid = True
+    by_name = {member.name: member for member in hub.host_members}
+    for reading in _HOST_READINGS:
+        member = by_name.get(reading.name)
+        if member is None:
+            # A platform that exposes only a subset of the readings.
+            continue
+        value = reading.value_of(host)
+        changed = member.value != value
+        member.value = value
+        if changed or first_poll:
+            member.notify()

@@ -13,6 +13,7 @@ registries.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Final
@@ -291,3 +292,111 @@ class Router:
     chan_currents: list[Diagnostic] = field(default_factory=list)
     voltages: list[Diagnostic] = field(default_factory=list)
     diags: list[Diagnostic] = field(default_factory=list)
+
+
+# A hub's identity is its LAN address, written bare and lower case. The exact
+# spelling is part of this library's public contract: consumers key their
+# device registries and stored records by it, so changing it would orphan every
+# installation already running.
+_MAC_RE: Final = re.compile(r"[0-9a-f]{12}")
+# Shape alone is not enough. The all-zero address is what a consumer typically
+# holds before a hub has answered, and the broadcast address is not a machine
+# either. Both match the pattern, and every hub reporting one would end up
+# sharing the same identity.
+_NOT_AN_IDENTITY: Final = frozenset({"000000000000", "ffffffffffff"})
+
+
+def normalise_mac(value: str) -> str | None:
+    """Return ``value`` as a bare lower-case address, or ``None`` if it is not one.
+
+    Hubs report their addresses with either separator and in either case, which
+    is wire-format variation the consumer should not have to undo -- and only a
+    real address may become an identity. A hub answering with something else (an
+    IP, a redaction, a placeholder its firmware falls back to) would otherwise
+    hand out an id that two machines could share.
+    """
+    mac = value.strip().replace(":", "").replace("-", "").lower()
+    if not _MAC_RE.fullmatch(mac) or mac in _NOT_AN_IDENTITY:
+        return None
+    return mac
+
+
+@dataclass(kw_only=True)
+class SmartHub:
+    """The SmartHub host itself — the machine the bus hangs off.
+
+    :class:`Router` models everything *behind* the hub; this models the hub.
+    It carries what the hub reports about itself, plus its own host readings as
+    ordinary :class:`BusMember` objects, so a consumer binds entities to them
+    exactly as it does for a module or the router.
+
+    Deliberately limited to what the hub *reports*. What any of it means is the
+    consumer's decision: which address identifies the device, what URL to build
+    from :attr:`slug`, how to name and unit the readings.
+    """
+
+    #: The LAN interface address, and the hub's identity: a SmartHub reports it
+    #: whichever interface currently carries the traffic, so it does not flip on
+    #: a LAN/WLAN switch. Empty when the hub has no LAN interface configured.
+    lan_mac: str = ""
+    #: Every real address the hub reports, in the order it reports them and in
+    #: the notation it used. The hub answers over whichever interface is up, so
+    #: a consumer matching devices by address wants all of them — but only
+    #: :attr:`lan_mac` is the identity. Values that are not addresses at all
+    #: (a redaction, a firmware placeholder) are already dropped, so a consumer
+    #: can register the list as-is.
+    macs: list[str] = field(default_factory=list)
+    #: Host name the hub reports for itself.
+    hostname: str = ""
+    #: Hardware platform as the hub names it, e.g. ``"Raspberry Pi 5"``.
+    platform: str = ""
+    #: SmartHub firmware version.
+    version: str = ""
+    #: Ingress slug of the hub's own add-on, empty when it does not run as one.
+    #: The firmware's "not an add-on" sentinel is already undone here.
+    slug: str = ""
+
+    #: Host readings. Empty on platforms that report none, so a consumer creates
+    #: no host entities there rather than publishing placeholders.
+    diags: list[Diagnostic] = field(default_factory=list)
+    sensors: list[Sensor] = field(default_factory=list)
+    loglevels: list[Sensor] = field(default_factory=list)
+
+    #: Whether a host poll has ever succeeded. The members start at their
+    #: dataclass defaults, and ``0`` is a plausible CPU load or log level rather
+    #: than an obvious placeholder — so a consumer must render them as "unknown"
+    #: until this turns true, not as a measurement of zero.
+    host_valid: bool = False
+
+    @property
+    def uid(self) -> str:
+        """The hub's identity: :attr:`lan_mac`, bare and lower case.
+
+        The base id every other uid in the model derives from -- pass it to
+        :func:`~habitron_client.async_build_system` as ``b_uid``.
+
+        A property rather than a field, unlike ``Router.uid`` and
+        ``Module.uid``: it is derived, so it cannot go stale against the
+        address it comes from.
+
+        Empty when the hub reported no usable address. That is a real state,
+        not an error -- a hub with no LAN interface configured answers ``null``
+        -- and what to key on instead is the consumer's decision, since the
+        library has nothing better to offer.
+        """
+        return normalise_mac(self.lan_mac) or ""
+
+    @property
+    def is_addon(self) -> bool:
+        """Whether the hub reports itself as running as a Home Assistant add-on.
+
+        Derived from :attr:`slug`, which the hub only fills in for an add-on
+        deployment. This describes the *hub*, not the consumer: an external hub
+        talking to a supervised Home Assistant still answers false.
+        """
+        return bool(self.slug)
+
+    @property
+    def host_members(self) -> list[Diagnostic | Sensor]:
+        """Every host reading in one list, diagnostics first."""
+        return [*self.diags, *self.sensors, *self.loglevels]
