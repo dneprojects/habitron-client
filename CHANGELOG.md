@@ -1,5 +1,32 @@
 # Changelog
 
+## 2.2.0 — 2026-09-14
+
+### Changed
+These change what existing names mean. Both known consumers pin an exact
+version, so nothing resolves onto them by accident.
+
+- **`Module.addr` is the module's address on the bus.** It used to be that
+  address plus the router id (`raddr + 100`), a shape left over from a time
+  when several routers were part of the concept. There is only ever one router,
+  so the hundreds digit carried no information -- and every single bus access
+  had to undo it: the parser built the offset address, then `async_build_system`,
+  `apply_event` and `distribute_status` each subtracted it again, as did both
+  consumers before every command.
+- **`Router.id` is gone.** It only ever held that constant offset. Nothing reads
+  a router id off the bus, and with the offset removed there is nothing left for
+  it to do.
+- `parse_module_inventory()` no longer takes `router_id`.
+
+Consumers addressing modules by `module.addr` no longer need to subtract
+anything: the value is what `get_module_definitions`, `get_module_settings`,
+`set_output` and every other addressed command already expect.
+
+**Identity is unaffected.** `Module.uid` was always derived from the bus address
+(`f"{b_uid}{addr}"`) and is replaced by the hardware version where the module
+reports one; `Router.uid` never contained the id. Device and entity ids in a
+consumer's registry are unchanged, so no migration is needed.
+
 ## 2.1.1 — 2026-09-14
 
 ### Changed
