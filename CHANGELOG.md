@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.1 — 2026-09-14
+
+### Changed
+- **`SmartHub.uid` is a plain field instead of a read-only property.** It is
+  still derived from `lan_mac` at parse time and nothing about that value
+  changed -- but a consumer whose hub reports no usable address needs to write
+  its own fallback id in and keep *one* identity across the whole model, since
+  that id is what its device registry and every entity id are keyed by.
+  `Router.uid` and `Module.uid` were already fields; this makes the hub match.
+
 ## 2.1.0 — 2026-09-14
 
 ### Added
