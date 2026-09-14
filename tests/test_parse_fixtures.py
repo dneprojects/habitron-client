@@ -47,7 +47,7 @@ def _zero_status() -> bytearray:
 
 def _module(typ: bytes, name: str = "M") -> Module:
     """Build an empty module of ``typ`` via the library factory."""
-    return build_module(uid="b1", addr=105, typ=typ, name=name, group=0)
+    return build_module(uid="b1", addr=5, typ=typ, name=name, group=0)
 
 
 # --------------------------------------------------------------------------- #
@@ -329,7 +329,7 @@ def test_gsm_area_label_is_not_a_message() -> None:
     show up as a phantom entry in the module's message list.
     """
     gsm = Module(
-        uid="MOD-GSM", addr=105, typ=b"\x1e\x03", name="GSM", mod_type="Smart GSM"
+        uid="MOD-GSM", addr=5, typ=b"\x1e\x03", name="GSM", mod_type="Smart GSM"
     )
     lines = [
         _name_line(255, 4, 136, b"Hallway"),  # module area, not a message
@@ -502,11 +502,9 @@ def test_module_inventory_builds_known_modules_only() -> None:
     """The inventory factory builds known module types and skips the rest."""
     # raddr=5, type Smart Out 8/R, name "Out"
     resp = bytes([5]) + b"\x0a\x01" + bytes([3]) + b"Out"
-    mods = parse_module_inventory(
-        resp, b_uid="b1", router_id=100, module_grp=[0, 0, 0, 0, 7]
-    )
+    mods = parse_module_inventory(resp, b_uid="b1", module_grp=[0, 0, 0, 0, 7])
     assert len(mods) == 1
-    assert mods[0].addr == 105
+    assert mods[0].addr == 5
     assert mods[0].group == 7
     assert mods[0].mod_type == "Smart Out 8/R"
 
@@ -514,11 +512,11 @@ def test_module_inventory_builds_known_modules_only() -> None:
 def test_distribute_status_applies_block_to_addressed_module() -> None:
     """distribute_status routes each status block to its module by address."""
     rt = build_router(b_uid="ROUTER-1")
-    out = build_module(uid="b1", addr=105, typ=b"\x0a\x01", name="Out", group=0)
+    out = build_module(uid="b1", addr=5, typ=b"\x0a\x01", name="Out", group=0)
     rt.modules = [out]
     block = _zero_status()
     block[MStatIdx.BYTE_COUNT] = MStatIdx.END  # full-length block, pass-through
-    block[MStatIdx.ADDR] = 5  # raddr → addr 5 + 100 = 105
+    block[MStatIdx.ADDR] = 5  # the module's bus address
     block[MStatIdx.OUT_1_8] = 0x01  # output 0 on
     distribute_status(rt, bytes(block))
     assert out.outputs[0].is_on is True

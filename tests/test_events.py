@@ -30,7 +30,7 @@ def _router_with(*modules: Module) -> Router:
 
 
 def _sc() -> Module:
-    return build_module(uid="UID5", addr=105, typ=b"\x01\x03", name="SC", group=0)
+    return build_module(uid="UID5", addr=5, typ=b"\x01\x03", name="SC", group=0)
 
 
 # --------------------------------------------------------------------------- #
@@ -108,7 +108,7 @@ def test_output_event_high_arg_sets_led() -> None:
 
 
 def test_output_event_notifies_backed_cover() -> None:
-    out = build_module(uid="UID5", addr=105, typ=b"\x0a\x01", name="Out", group=0)
+    out = build_module(uid="UID5", addr=5, typ=b"\x0a\x01", name="Out", group=0)
     out.outputs[0].type = -10  # cover-backing output
     out.outputs[1].type = -10
     out.covers[0] = Cover(name="Sh", nmbr=0, type=1)
@@ -120,7 +120,7 @@ def test_output_event_notifies_backed_cover() -> None:
 
 
 def test_rgb_event_full_value_sets_color() -> None:
-    sc = build_module(uid="UID5", addr=105, typ=b"\x01\x04", name="Touch", group=0)
+    sc = build_module(uid="UID5", addr=5, typ=b"\x01\x04", name="Touch", group=0)
     rt = _router_with(sc)
     fired = _fired(sc.color_leds[0])
     apply_event(rt, 5, HaEvents.RGB, 0, 2, 10, 20, 30)
@@ -130,14 +130,14 @@ def test_rgb_event_full_value_sets_color() -> None:
 
 
 def test_rgb_event_on_off_toggle() -> None:
-    sc = build_module(uid="UID5", addr=105, typ=b"\x01\x04", name="Touch", group=0)
+    sc = build_module(uid="UID5", addr=5, typ=b"\x01\x04", name="Touch", group=0)
     rt = _router_with(sc)
     apply_event(rt, 5, HaEvents.RGB, 0, 0)
     assert sc.color_leds[0].is_on is False
 
 
 def test_finger_event_sets_identifier_and_finger() -> None:
-    ek = build_module(uid="UID5", addr=105, typ=b"\x1e\x01", name="ekey", group=0)
+    ek = build_module(uid="UID5", addr=5, typ=b"\x1e\x01", name="ekey", group=0)
     rt = _router_with(ek)
     sens_fired = _fired(ek.sensors[0])
     fin_fired = _fired(ek.fingers[0])
@@ -151,7 +151,7 @@ def test_finger_event_sets_identifier_and_finger() -> None:
 
 
 def test_finger_event_disabled_user_negates_id() -> None:
-    ek = build_module(uid="UID5", addr=105, typ=b"\x1e\x01", name="ekey", group=0)
+    ek = build_module(uid="UID5", addr=5, typ=b"\x1e\x01", name="ekey", group=0)
     rt = _router_with(ek)
     apply_event(
         rt, 5, HaEvents.FINGER, 7, 131

@@ -30,11 +30,9 @@ def test_scrub_inventory_keeps_type_drops_name() -> None:
     payload = bytes([5]) + b"\x0a\x01" + bytes([3]) + b"Out"
     scrubbed = scrub._scrub_inventory(payload)
     assert len(scrubbed) == len(payload)
-    mods = parse_module_inventory(
-        scrubbed, b_uid="b1", router_id=100, module_grp=[0, 0, 0, 0, 7]
-    )
+    mods = parse_module_inventory(scrubbed, b_uid="b1", module_grp=[0, 0, 0, 0, 7])
     assert mods[0].mod_type == "Smart Out 8/R"  # type bytes preserved
-    assert mods[0].addr == 105
+    assert mods[0].addr == 5
     assert mods[0].name == "xxx"  # name anonymised
 
 
@@ -77,7 +75,7 @@ def test_scrub_module_definitions_keeps_area_drops_name() -> None:
     payload = bytes([0, 0, 0, len(lines), 0, 0, 0]) + b"".join(lines)
     scrubbed = scrub._scrub_module_definitions(payload)
     assert len(scrubbed) == len(payload)
-    sc = build_module(uid="b1", addr=105, typ=b"\x01\x03", name="SC", group=0)
+    sc = build_module(uid="b1", addr=5, typ=b"\x01\x03", name="SC", group=0)
     parse_definitions(sc, scrubbed)
     assert sc.inputs[8].area == 3  # area byte preserved
     assert set(sc.inputs[8].name) == {"x"}  # name fully anonymised

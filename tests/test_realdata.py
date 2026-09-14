@@ -36,7 +36,7 @@ _REAL_TYPES = {
 def _module(kind: str, mod_id: int) -> Module:
     return build_module(
         uid=f"UID{mod_id}",
-        addr=100 + mod_id,
+        addr=mod_id,
         typ=_REAL_TYPES[kind],
         name=kind,
         group=0,

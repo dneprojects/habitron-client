@@ -264,7 +264,6 @@ class Router:
     """The Habitron router and everything reachable behind it."""
 
     uid: str = ""
-    id: int = 100
     name: str = ""
     version: str = ""
     serial: str = ""

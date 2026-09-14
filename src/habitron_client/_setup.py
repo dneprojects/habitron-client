@@ -63,20 +63,18 @@ async def async_build_system(client: HabitronClient, *, b_uid: str) -> Router:
         router.modules = parse_module_inventory(
             await client.get_router_modules(),
             b_uid=b_uid,
-            router_id=router.id,
             module_grp=router.module_grp,
         )
 
         sys_status, _crc = await client.get_compact_status()
         for module in router.modules:
-            raddr = module.addr - router.id
             name_prefix = f"Mod_{module.uid}_{b_uid}"
             parse_definitions(
                 module,
-                await client.get_module_definitions(raddr),
+                await client.get_module_definitions(module.addr),
                 name_prefix=name_prefix,
             )
-            parse_settings(module, await client.get_module_settings(raddr))
+            parse_settings(module, await client.get_module_settings(module.addr))
             if module.hw_version:
                 # The device identifier is the hardware version (as in the
                 # integration); keep the inventory uid only as a fallback.

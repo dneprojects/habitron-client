@@ -29,7 +29,6 @@ def build_router(*, b_uid: str) -> Router:
     """Create a router with its fixed diagnostic / state members populated."""
     return Router(
         uid=f"rt_{b_uid}",
-        id=100,
         name=f"Router {b_uid}",
         chan_timeouts=[
             Diagnostic(name=f"Timeouts channel {i + 1}", nmbr=i, type=_TYPE_DIAG)
@@ -84,7 +83,7 @@ def parse_router_definitions(router: Router, smr: bytes) -> None:
 
 
 def parse_module_inventory(
-    resp: bytes, *, b_uid: str, router_id: int, module_grp: list[int]
+    resp: bytes, *, b_uid: str, module_grp: list[int]
 ) -> list[Module]:
     """Build (empty) modules from the router's module inventory.
 
@@ -95,30 +94,30 @@ def parse_module_inventory(
     modules: list[Module] = []
     mod_string = resp.decode("iso8859-1")
     while len(resp) > 0:
-        raddr = resp[0]
+        addr = resp[0]  # the module's address on the bus
         mod_typ = resp[1:3]
         name_len = int(resp[3])
         mod_name = mod_string[4 : 4 + name_len]
         if mod_typ in MODULE_CODES and _module_kind(mod_typ) != "generic":
             _LOGGER.debug(
-                "inventory: raddr=%s type=%s name=%r",
-                raddr,
+                "inventory: addr=%s type=%s name=%r",
+                addr,
                 MODULE_CODES[mod_typ],
                 mod_name,
             )
             modules.append(
                 build_module(
-                    uid=f"{b_uid}{raddr}",
-                    addr=raddr + router_id,
+                    uid=f"{b_uid}{addr}",
+                    addr=addr,
                     typ=mod_typ,
                     name=mod_name,
-                    group=module_grp[raddr - 1],
+                    group=module_grp[addr - 1],
                 )
             )
         else:
             _LOGGER.debug(
-                "inventory: skipping raddr=%s type=%s (unknown/generic)",
-                raddr,
+                "inventory: skipping addr=%s type=%s (unknown/generic)",
+                addr,
                 mod_typ.hex(),
             )
         mod_string = mod_string[4 + name_len : len(resp)]
@@ -243,7 +242,7 @@ def distribute_status(router: Router, sys_status: bytes) -> None:
         block = padded[m_idx * block_len : (m_idx + 1) * block_len]
         if not block:
             continue
-        mod_addr = block[MStatIdx.ADDR] + router.id
+        mod_addr = block[MStatIdx.ADDR]
         module = by_addr.get(mod_addr)
         if module is not None:
             apply_status(module, block)

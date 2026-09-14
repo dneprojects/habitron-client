@@ -30,7 +30,7 @@ _EVENT_NAMES: dict[int, str] = {
 def _get_module(router: Router, mod_id: int) -> Module | None:
     """Return the module whose raw (bus) address matches ``mod_id``."""
     for module in router.modules:
-        if module.addr - router.id == mod_id:
+        if module.addr == mod_id:
             return module
     return None
 
