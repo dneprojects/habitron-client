@@ -47,6 +47,12 @@ GET_GROUP_MODE0: Final = Command(b"\x14\x02\x01\x01\x00\x00\x00", ())
 SET_GROUP_MODE: Final = Command(
     b"\x14\x02\x02\x01<mod>\x03\x00\x01<mod><arg1>", ("mod", "arg1")
 )
+# Wire values for the ``arg1`` of SET_GROUP_MODE. The bus folds two unrelated
+# settings into one argument: the alarm state and the day/night state.
+GROUP_MODE_ALARM_ON: Final = 0x40
+GROUP_MODE_ALARM_OFF: Final = 0x41
+GROUP_MODE_DAY: Final = 0x42
+GROUP_MODE_NIGHT: Final = 0x43
 GET_ROUTER_MODES: Final = Command(
     b"\x14\x02\x03\x01<mod>\x03\x00\x01<mod>\x00", ("mod",)
 )

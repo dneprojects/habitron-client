@@ -14,7 +14,13 @@ from ._setup import (
     async_refresh_system,
 )
 from .client import HabitronClient
-from .const import Command
+from .const import (
+    GROUP_MODE_ALARM_OFF,
+    GROUP_MODE_ALARM_ON,
+    GROUP_MODE_DAY,
+    GROUP_MODE_NIGHT,
+    Command,
+)
 from .discovery import (
     discover_smarthubs,
     get_host_ip,
@@ -61,6 +67,10 @@ except PackageNotFoundError:  # pragma: no cover - only during local source runs
     __version__ = "0.0.0"
 
 __all__ = [
+    "GROUP_MODE_ALARM_OFF",
+    "GROUP_MODE_ALARM_ON",
+    "GROUP_MODE_DAY",
+    "GROUP_MODE_NIGHT",
     "MODULE_FAULTS",
     "Area",
     "BusMember",

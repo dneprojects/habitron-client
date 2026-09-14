@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Final
+from typing import ClassVar, Final
 
 Listener = Callable[[], None]
 
@@ -191,6 +191,10 @@ class Area:
 class Module:
     """A Habitron module behind the router, with its parsed members."""
 
+    #: Dimmer channel the module's analogue output is wired to. The bus has no
+    #: separate command for it -- an analogue output is addressed as a dimmer.
+    ANALOG_OUT_CHANNEL: ClassVar[int] = 3
+
     uid: str
     addr: int
     typ: bytes
@@ -231,6 +235,16 @@ class Module:
     vis_commands: list[HbtnCommand] = field(default_factory=list)
     gsm_numbers: list[HbtnCommand] = field(default_factory=list)
     diags: list[Diagnostic] = field(default_factory=list)
+
+    def led_output(self, nmbr: int) -> int:
+        """Return the output number LED ``nmbr`` is addressed by.
+
+        A module's indicator LEDs continue the output numbering rather than
+        having a command of their own, so the first LED is the output after the
+        last real one. Where that boundary sits is a property of the module, so
+        it is answered here rather than by every caller counting outputs.
+        """
+        return nmbr + len(self.outputs)
 
 
 @dataclass(kw_only=True)

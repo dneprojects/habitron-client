@@ -13,6 +13,7 @@ exceptions from :mod:`habitron_client.exceptions`.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Sequence
 from types import TracebackType
@@ -38,6 +39,10 @@ from .exceptions import (
 from .model import HostDiagnostics
 
 _LOGGER = logging.getLogger(__name__)
+
+# How long a router channel stays powered down during a power cycle. Long
+# enough for the modules on it to actually lose power and restart.
+_POWER_CYCLE_PAUSE = 2.0
 
 _DEFAULT_TIMEOUT: float = 10.0
 _ERROR_PREFIX: bytes = b"Error"
@@ -327,6 +332,16 @@ class HabitronClient:
         """Start a router/module firmware update (with CRC)."""
         return await self._send_crc(const.DO_FW_UPDATE, mod_nmbr, timeout=1000.0)
 
+    async def power_cycle_channel(self, channel: int) -> None:
+        """Power a router channel down and back up.
+
+        The pause is part of the operation, not a caller's choice: the modules
+        on the channel have to lose power long enough to actually restart.
+        """
+        await self.power_cycle_channel_down(channel)
+        await asyncio.sleep(_POWER_CYCLE_PAUSE)
+        await self.power_cycle_channel_up(channel)
+
     async def power_cycle_channel_down(self, channel: int) -> None:
         """Power down a router channel."""
         await self._send_crc(const.POWER_DWN_CHAN, 1 << (channel - 1), timeout=1000.0)
@@ -417,6 +432,20 @@ class HabitronClient:
 
     async def set_group_mode(self, grp_no: int, mode: int) -> None:
         """Set the mode for a group."""
+        await self._send(const.SET_GROUP_MODE, grp_no, mode)
+
+    async def set_daytime_mode(self, grp_no: int, daytime: bool) -> None:
+        """Switch a group between its day and night mode.
+
+        The bus carries this in the same argument as the alarm state, as one of
+        four values; which value means what is protocol detail and stays here.
+        """
+        mode = const.GROUP_MODE_DAY if daytime else const.GROUP_MODE_NIGHT
+        await self._send(const.SET_GROUP_MODE, grp_no, mode)
+
+    async def set_alarm_mode(self, grp_no: int, alarm: bool) -> None:
+        """Arm or disarm a group's alarm mode."""
+        mode = const.GROUP_MODE_ALARM_ON if alarm else const.GROUP_MODE_ALARM_OFF
         await self._send(const.SET_GROUP_MODE, grp_no, mode)
 
     async def send_message(self, mod_addr: int, msg_id: int) -> None:

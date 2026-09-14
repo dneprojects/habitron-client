@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from unittest.mock import patch
 
 import pytest
 
@@ -83,6 +84,32 @@ CASES: list[tuple[str, Call, Command, tuple[int | bytes, ...]]] = [
     ),
     ("call_coll", lambda c: c.call_coll_command(5), const.CALL_COLL_COMMAND, (5,)),
     ("set_group_mode", lambda c: c.set_group_mode(2, 3), const.SET_GROUP_MODE, (2, 3)),
+    # The bus folds alarm and day/night into the same argument; the four
+    # values are what those two settings actually mean on the wire.
+    (
+        "daytime_day",
+        lambda c: c.set_daytime_mode(2, True),
+        const.SET_GROUP_MODE,
+        (2, const.GROUP_MODE_DAY),
+    ),
+    (
+        "daytime_night",
+        lambda c: c.set_daytime_mode(2, False),
+        const.SET_GROUP_MODE,
+        (2, const.GROUP_MODE_NIGHT),
+    ),
+    (
+        "alarm_on",
+        lambda c: c.set_alarm_mode(2, True),
+        const.SET_GROUP_MODE,
+        (2, const.GROUP_MODE_ALARM_ON),
+    ),
+    (
+        "alarm_off",
+        lambda c: c.set_alarm_mode(2, False),
+        const.SET_GROUP_MODE,
+        (2, const.GROUP_MODE_ALARM_OFF),
+    ),
     ("set_log_level", lambda c: c.set_log_level(1, 2), const.SET_LOG_LEVEL, (1, 2)),
     ("send_message", lambda c: c.send_message(1, 7), const.SEND_MESSAGE, (1, 15, 7)),
     ("send_sms", lambda c: c.send_sms(1, 7, 3), const.SEND_SMS, (1, 3, 7)),
@@ -287,3 +314,32 @@ def test_direct_send_only_without_context_manager_raises() -> None:
             await client.set_output(1, 2, True)
 
     asyncio.run(scenario())
+
+
+def test_power_cycle_channel_goes_down_then_up() -> None:
+    """The pause belongs to the operation, not to the caller.
+
+    The modules on the channel have to lose power long enough to restart, so
+    the order and the wait are the library's business -- a consumer that only
+    sent "down" and "up" back to back would not cycle anything.
+    """
+    calls: list[str] = []
+    client = HabitronClient("1.2.3.4")
+
+    async def _down(channel: int) -> None:
+        calls.append(f"down{channel}")
+
+    async def _up(channel: int) -> None:
+        calls.append(f"up{channel}")
+
+    async def _sleep(delay: float) -> None:
+        calls.append(f"wait{delay}")
+
+    with (
+        patch.object(client, "power_cycle_channel_down", _down),
+        patch.object(client, "power_cycle_channel_up", _up),
+        patch("habitron_client.client.asyncio.sleep", _sleep),
+    ):
+        asyncio.run(client.power_cycle_channel(3))
+
+    assert calls == ["down3", "wait2.0", "up3"]
