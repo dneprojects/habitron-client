@@ -301,6 +301,7 @@ def parse_smhub_info(info: SmhubInfo) -> SmartHub:
         slug = ""
 
     hub = SmartHub(
+        uid=normalise_mac(lan_mac) or "",
         lan_mac=lan_mac,
         # Filtered to real addresses: the consumer registers these directly as
         # device connections, and a redaction or a firmware placeholder would

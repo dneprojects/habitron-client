@@ -335,6 +335,18 @@ class SmartHub:
     from :attr:`slug`, how to name and unit the readings.
     """
 
+    #: The hub's identity: :attr:`lan_mac`, bare and lower case, as derived by
+    #: :func:`~habitron_client.async_build_hub`. The base id every other uid in
+    #: the model derives from -- pass it to
+    #: :func:`~habitron_client.async_build_system` as ``b_uid``.
+    #:
+    #: Empty when the hub reported no usable address. That is a real state, not
+    #: an error -- a hub with no LAN interface configured answers ``null`` --
+    #: and the library has nothing better to offer. A field rather than a
+    #: derived property precisely so a consumer can write its own fallback in
+    #: and keep one identity for the whole model, the way ``Router.uid`` and
+    #: ``Module.uid`` are also plain fields.
+    uid: str = ""
     #: The LAN interface address, and the hub's identity: a SmartHub reports it
     #: whichever interface currently carries the traffic, so it does not flip on
     #: a LAN/WLAN switch. Empty when the hub has no LAN interface configured.
@@ -367,24 +379,6 @@ class SmartHub:
     #: than an obvious placeholder — so a consumer must render them as "unknown"
     #: until this turns true, not as a measurement of zero.
     host_valid: bool = False
-
-    @property
-    def uid(self) -> str:
-        """The hub's identity: :attr:`lan_mac`, bare and lower case.
-
-        The base id every other uid in the model derives from -- pass it to
-        :func:`~habitron_client.async_build_system` as ``b_uid``.
-
-        A property rather than a field, unlike ``Router.uid`` and
-        ``Module.uid``: it is derived, so it cannot go stale against the
-        address it comes from.
-
-        Empty when the hub reported no usable address. That is a real state,
-        not an error -- a hub with no LAN interface configured answers ``null``
-        -- and what to key on instead is the consumer's decision, since the
-        library has nothing better to offer.
-        """
-        return normalise_mac(self.lan_mac) or ""
 
     @property
     def is_addon(self) -> bool:

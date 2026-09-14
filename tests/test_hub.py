@@ -179,6 +179,16 @@ def test_uid_is_empty_without_a_usable_address(lan_mac: str | None) -> None:
     assert hub.uid == ""
 
 
+def test_uid_accepts_a_consumer_fallback() -> None:
+    """A field, not a derived property: a consumer without an address from the
+    hub writes its own id in and keeps one identity across the whole model."""
+    hub = parse_smhub_info(_info(network={"lan mac": None}))
+    hub.uid = "01JABCDEF"
+    assert hub.uid == "01JABCDEF"
+    # The address it could not be derived from is untouched and still reported.
+    assert hub.lan_mac == ""
+
+
 def test_macs_drop_what_is_not_an_address() -> None:
     """The consumer registers these as device connections unchanged."""
     hub = parse_smhub_info(
