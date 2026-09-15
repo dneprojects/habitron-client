@@ -28,6 +28,14 @@ from .discovery import (
     query_smarthub,
     test_connection,
 )
+from .ekey import (
+    DISABLED_SUFFIX,
+    FINGER_KEYS,
+    USER_ERROR,
+    USER_UNKNOWN,
+    decode_finger,
+    decode_user,
+)
 from .exceptions import (
     HabitronBusError,
     HabitronConnectionError,
@@ -67,11 +75,15 @@ except PackageNotFoundError:  # pragma: no cover - only during local source runs
     __version__ = "0.0.0"
 
 __all__ = [
+    "DISABLED_SUFFIX",
+    "FINGER_KEYS",
     "GROUP_MODE_ALARM_OFF",
     "GROUP_MODE_ALARM_ON",
     "GROUP_MODE_DAY",
     "GROUP_MODE_NIGHT",
     "MODULE_FAULTS",
+    "USER_ERROR",
+    "USER_UNKNOWN",
     "Area",
     "BusMember",
     "ColorLed",
@@ -111,7 +123,9 @@ __all__ = [
     "async_refresh_system",
     "calc_crc",
     "check_crc",
+    "decode_finger",
     "decode_module_faults",
+    "decode_user",
     "discover_smarthubs",
     "format_block_output",
     "get_host_ip",

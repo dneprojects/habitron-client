@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.4.0 — 2026-09-15
+
+### Added
+The last bus semantics a consumer still had to know, this time on the reading
+side: `decode_finger` and `decode_user` in the new `ekey` module, with
+`FINGER_KEYS` and the markers they can return.
+
+An ekey scanner reports two raw numbers per press, and neither is showable as
+it stands. `0` means nothing has been presented and `255` that the reader
+itself failed; the identity is counted from one against the module's enrolled
+list; and a *negative* identity names an entry that exists but has been
+disabled. Four rules, all of them wire semantics, and until now every consumer
+carried its own copy -- the integration decided in a lambda of its sensor table
+what a `255` meant.
+
+`FINGER_KEYS` are identifiers, not display text: a consumer localises them. The
+markers (`USER_ERROR`, `USER_UNKNOWN`, `DISABLED_SUFFIX`) are exported so both
+sides agree on the strings they render.
+
+Purely additive; nothing existing changed.
+
 ## 2.3.1 — 2026-09-15
 
 ### Fixed
