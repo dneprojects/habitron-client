@@ -1,5 +1,33 @@
 # Changelog
 
+## 2.3.1 — 2026-09-15
+
+### Fixed
+Two answers from the hub that were taken at face value.
+
+- **The response CRC is verified, and read the way the hub writes it.** Every
+  frame carries one, the hub checks the one we send (`ApiMessage.check_CRC`) and
+  writes one over everything before the trailer, high byte first. This end
+  never checked it -- and read the two bytes low-first, so `check_crc` could not
+  even validate a frame `wrap_command` had just built. TCP covers the hop to the
+  hub; the serial hop on to the router and the modules, where the payload comes
+  from, has no other protection. The test double had inherited both mistakes,
+  which is why nothing caught them.
+- **An unreadable module inventory is no longer read as "there are no
+  modules".** The hub answers a module list it could not obtain with an empty or
+  shortened payload rather than an error, and an empty list parsed cleanly -- so
+  a consumer took a failed read for a removal and acted on it, deleting every
+  module device it had registered. The compact status is now the second witness:
+  it comes from the hub's mirror and names one module per block, so a module the
+  status names and the inventory never mentioned means the answer was
+  incomplete, and the build fails for the consumer to retry. An installation
+  that genuinely has no modules reports neither and still sets up, a type this
+  library does not model is named and skipped rather than missing, and a status
+  cut short inside a block names nothing rather than something wrong.
+
+`parse_module_inventory` now also returns the addresses it saw; it is internal
+and not exported, so nothing outside changes.
+
 ## 2.3.0 — 2026-09-14
 
 ### Added

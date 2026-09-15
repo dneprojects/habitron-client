@@ -84,17 +84,25 @@ def parse_router_definitions(router: Router, smr: bytes) -> None:
 
 def parse_module_inventory(
     resp: bytes, *, b_uid: str, module_grp: list[int]
-) -> list[Module]:
+) -> tuple[list[Module], set[int]]:
     """Build (empty) modules from the router's module inventory.
 
     Mirrors ``get_modules`` + the factory in ``initialize``: only modules with a
     known, instantiable type are returned (others are skipped, as the
     integration does). The caller fills names/values via the module parsers.
+
+    Returns the modules *and* every address the inventory mentioned, skipped
+    ones included. The caller checks that set against the bus status: a module
+    the status knows and the inventory never named means the answer was
+    incomplete, while one that was named and skipped is simply a type this
+    library does not model.
     """
     modules: list[Module] = []
+    seen: set[int] = set()
     mod_string = resp.decode("iso8859-1")
     while len(resp) > 0:
         addr = resp[0]  # the module's address on the bus
+        seen.add(addr)
         mod_typ = resp[1:3]
         name_len = int(resp[3])
         mod_name = mod_string[4 : 4 + name_len]
@@ -122,7 +130,7 @@ def parse_module_inventory(
             )
         mod_string = mod_string[4 + name_len : len(resp)]
         resp = resp[4 + name_len :]
-    return modules
+    return modules, seen
 
 
 def parse_global_descriptions(router: Router, resp: bytes) -> None:
@@ -230,6 +238,28 @@ def pad_sys_status(sys_status: bytes) -> bytes:
     return b"".join(
         sys_status[i * blk_len : (i + 1) * blk_len] + pad for i in range(no_mods)
     )
+
+
+def status_addresses(sys_status: bytes) -> set[int]:
+    """Return the module addresses the compact status reliably names.
+
+    Sliced exactly as :func:`distribute_status` does it, so there is only one
+    notion of where a block ends and which byte names its module.
+
+    An answer that does not divide into whole blocks was cut short inside one:
+    from there on the offsets no longer line up, and reading addresses out of
+    it would invent modules that do not exist. Such a status names nothing
+    rather than something wrong -- a caller weighing it as evidence has to be
+    able to trust what comes back. A status cut short *between* blocks stays
+    readable and simply names fewer modules, which is a subset and safe.
+    """
+    padded = pad_sys_status(sys_status)
+    block_len = MStatIdx.END
+    if not padded or len(padded) % block_len:
+        return set()
+    return {
+        padded[i * block_len + MStatIdx.ADDR] for i in range(len(padded) // block_len)
+    }
 
 
 def distribute_status(router: Router, sys_status: bytes) -> None:

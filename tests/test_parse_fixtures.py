@@ -502,8 +502,11 @@ def test_module_inventory_builds_known_modules_only() -> None:
     """The inventory factory builds known module types and skips the rest."""
     # raddr=5, type Smart Out 8/R, name "Out"
     resp = bytes([5]) + b"\x0a\x01" + bytes([3]) + b"Out"
-    mods = parse_module_inventory(resp, b_uid="b1", module_grp=[0, 0, 0, 0, 7])
+    mods, seen = parse_module_inventory(resp, b_uid="b1", module_grp=[0, 0, 0, 0, 7])
     assert len(mods) == 1
+    # Every address the answer named, including the types this library does not
+    # model -- that set is what tells an incomplete answer from a skipped type.
+    assert 5 in seen
     assert mods[0].addr == 5
     assert mods[0].group == 7
     assert mods[0].mod_type == "Smart Out 8/R"

@@ -167,6 +167,19 @@ def _recorded_smr() -> bytes:
     raise AssertionError("recording has no get_smr call")
 
 
+def _recorded(method: str) -> bytes:
+    """Return the payload the recording holds for ``method``."""
+    data = json.loads(
+        (pathlib.Path(__file__).parent / "fixtures" / "anon_recording.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    for entry in data["calls"]:
+        if entry["method"] == method:
+            return base64.b64decode(entry["bytes_b64"])
+    raise AssertionError(f"recording has no {method} call")
+
+
 class _PastGuard(Exception):
     """Raised by the stub as soon as the build proceeds past the guard."""
 
@@ -205,4 +218,80 @@ def test_build_accepts_a_genuinely_empty_description_table() -> None:
     """The 4-byte header ("no lists") stays a valid answer for a new system."""
     client = _DescriptionsClient(b"\x00\x00\x00\x00")
     with pytest.raises(_PastGuard):  # guard passed, build moved on
+        asyncio.run(async_build_system(client, b_uid="UID"))  # type: ignore[arg-type]
+
+
+class _InventoryClient:
+    """Answers everything up to the compact status, then stops the build."""
+
+    def __init__(self, inventory: bytes, status: bytes) -> None:
+        self._inventory = inventory
+        self._status = status
+
+    async def get_smr(self) -> bytes:
+        return _recorded_smr()
+
+    async def get_global_descriptions(self) -> bytes:
+        return _recorded("get_global_descriptions")
+
+    async def get_router_modules(self) -> bytes:
+        return self._inventory
+
+    async def get_compact_status(self) -> tuple[bytes, int]:
+        return self._status, 0
+
+    def __getattr__(self, name: str):
+        async def _stop(*args: object, **kwargs: object) -> None:
+            raise _PastGuard(name)
+
+        return _stop
+
+
+def test_build_fails_when_the_inventory_omits_a_module_the_bus_reports() -> None:
+    """An unreadable module list must not pass as "there are no modules".
+
+    A consumer that registers devices from this list would take the empty
+    answer for a removal and delete every module device it has.
+    """
+    client = _InventoryClient(b"", _recorded("get_compact_status"))
+    with pytest.raises(HabitronProtocolError, match="incomplete module inventory"):
+        asyncio.run(async_build_system(client, b_uid="UID"))  # type: ignore[arg-type]
+
+
+def test_build_fails_on_a_shortened_inventory() -> None:
+    """A list that breaks off after one entry is incomplete, not shorter."""
+    full = _recorded("get_router_modules")
+    first_entry = full[: 4 + full[3]]
+    client = _InventoryClient(first_entry, _recorded("get_compact_status"))
+    with pytest.raises(HabitronProtocolError, match="incomplete module inventory"):
+        asyncio.run(async_build_system(client, b_uid="UID"))  # type: ignore[arg-type]
+
+
+def test_build_accepts_an_installation_that_has_no_modules_yet() -> None:
+    """Hub and router alone: neither read names a module, and that is valid."""
+    client = _InventoryClient(b"", b"")
+    with pytest.raises(_PastGuard):  # guard passed, build moved on
+        asyncio.run(async_build_system(client, b_uid="UID"))  # type: ignore[arg-type]
+
+
+def test_a_status_cut_short_inside_a_block_is_no_witness() -> None:
+    """A mis-sliceable status must not invent modules and fail the build.
+
+    Its later bytes no longer sit where the offsets say, so addresses read out
+    of it would be noise -- and noise that no inventory lists would block every
+    setup. The recorded status is 11 blocks; cutting 50 bytes leaves a length
+    that divides into none.
+    """
+    cut = _recorded("get_compact_status")[:-50]
+    client = _InventoryClient(b"", cut)
+    with pytest.raises(_PastGuard):  # no witness, so nothing is claimed
+        asyncio.run(async_build_system(client, b_uid="UID"))  # type: ignore[arg-type]
+
+
+def test_build_accepts_an_inventory_that_matches_the_bus() -> None:
+    """The recorded pair agrees on all eleven addresses and passes."""
+    client = _InventoryClient(
+        _recorded("get_router_modules"), _recorded("get_compact_status")
+    )
+    with pytest.raises(_PastGuard):
         asyncio.run(async_build_system(client, b_uid="UID"))  # type: ignore[arg-type]

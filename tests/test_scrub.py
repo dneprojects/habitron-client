@@ -30,7 +30,9 @@ def test_scrub_inventory_keeps_type_drops_name() -> None:
     payload = bytes([5]) + b"\x0a\x01" + bytes([3]) + b"Out"
     scrubbed = scrub._scrub_inventory(payload)
     assert len(scrubbed) == len(payload)
-    mods = parse_module_inventory(scrubbed, b_uid="b1", module_grp=[0, 0, 0, 0, 7])
+    mods, _seen = parse_module_inventory(
+        scrubbed, b_uid="b1", module_grp=[0, 0, 0, 0, 7]
+    )
     assert mods[0].mod_type == "Smart Out 8/R"  # type bytes preserved
     assert mods[0].addr == 5
     assert mods[0].name == "xxx"  # name anonymised

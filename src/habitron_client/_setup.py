@@ -19,6 +19,7 @@ from ._parse_router import (
     parse_global_descriptions,
     parse_module_inventory,
     parse_router_definitions,
+    status_addresses,
 )
 from .client import HabitronClient
 from .exceptions import HabitronError, HabitronProtocolError
@@ -34,6 +35,31 @@ _MIN_STATUS_LEN = 10
 # an empty payload when it could not read the descriptions from the router, so
 # anything shorter means "unavailable" rather than "there are none".
 _MIN_DESCRIPTIONS_LEN = 4
+
+
+def _raise_on_incomplete_inventory(seen: set[int], sys_status: bytes) -> None:
+    """Refuse a module inventory the bus status contradicts.
+
+    The hub answers a module list it could not read with an empty or shortened
+    payload rather than an error, and an empty list parses cleanly -- so a
+    consumer would take a failed read for "these modules are gone" and act on
+    it. The compact status is the second witness: it comes from the hub's
+    mirror and carries one block per module it knows. A module the status names
+    and the inventory never mentioned means the inventory answer was
+    incomplete.
+
+    An address that was mentioned and skipped (an unknown or generic type) is
+    not missing, which is why this checks what the inventory *saw*, not what it
+    built. A status too short to slice carries no witness, so nothing is
+    claimed; a genuinely module-less installation reports neither and passes.
+    """
+    if len(sys_status) < _MIN_STATUS_LEN:
+        return
+    if missing := sorted(status_addresses(sys_status) - seen):
+        raise HabitronProtocolError(
+            "hub reported an incomplete module inventory: the bus status "
+            f"carries module(s) {missing} that the inventory does not name"
+        )
 
 
 async def async_build_system(client: HabitronClient, *, b_uid: str) -> Router:
@@ -60,13 +86,14 @@ async def async_build_system(client: HabitronClient, *, b_uid: str) -> Router:
                 "hub reports the router descriptions as unavailable"
             )
         parse_global_descriptions(router, descriptions)
-        router.modules = parse_module_inventory(
+        router.modules, seen_addrs = parse_module_inventory(
             await client.get_router_modules(),
             b_uid=b_uid,
             module_grp=router.module_grp,
         )
 
         sys_status, _crc = await client.get_compact_status()
+        _raise_on_incomplete_inventory(seen_addrs, sys_status)
         for module in router.modules:
             name_prefix = f"Mod_{module.uid}_{b_uid}"
             parse_definitions(
