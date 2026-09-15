@@ -38,9 +38,12 @@ def build_response(payload: bytes, crc: int | None = None) -> bytes:
     header[2] = (total >> 8) & 0xFF
     header[28] = len(payload) & 0xFF
     header[29] = (len(payload) >> 8) & 0xFF
+    # Exactly what the hub does in ``ApiMessage.resp_prepare_base``: the CRC
+    # covers everything before the trailer -- header included, not the payload
+    # alone -- and is written high byte first.
     if crc is None:
-        crc = calc_crc(payload)
-    trailer = bytes((crc & 0xFF, (crc >> 8) & 0xFF, 0x3F))
+        crc = calc_crc(bytes(header) + payload)
+    trailer = bytes(((crc >> 8) & 0xFF, crc & 0xFF, 0x3F))
     return bytes(header) + payload + trailer
 
 

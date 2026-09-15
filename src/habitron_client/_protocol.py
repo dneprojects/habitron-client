@@ -54,8 +54,13 @@ def calc_crc(data: bytes) -> int:
 
 
 def check_crc(frame: bytes) -> bool:
-    """Return ``True`` if the trailing CRC of *frame* matches its body."""
-    frame_crc = int.from_bytes(frame[-3:-1], "little")
+    """Return ``True`` if the trailing CRC of *frame* matches its body.
+
+    Big endian: both sides write the CRC high byte first -- ``wrap_command``
+    below for a command, ``ApiMessage.resp_prepare_base`` in the hub for a
+    response -- and the hub reads an incoming one the same way.
+    """
+    frame_crc = int.from_bytes(frame[-3:-1], "big")
     return calc_crc(frame[:-3]) == frame_crc
 
 

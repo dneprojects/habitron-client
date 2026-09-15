@@ -39,11 +39,15 @@ def test_wrap_command_matches_legacy(payload: bytes) -> None:
 
 
 def test_check_crc_roundtrip() -> None:
-    body = b"hello world payload"
-    crc = calc_crc(body)
-    frame = body + bytes((crc & 0xFF, (crc >> 8) & 0xFF, 0x3F))
+    """What ``wrap_command`` builds must be what ``check_crc`` accepts.
+
+    Building the frame by hand here hid a real disagreement: the builder writes
+    the CRC high byte first (as the hub does, and expects), while the check read
+    it low byte first, so the library could not validate its own frames.
+    """
+    frame = wrap_command(b"\x2a\x01\xff")
     assert check_crc(frame) is True
-    corrupted = body[:-1] + b"X" + frame[-3:]
+    corrupted = frame[:-4] + b"X" + frame[-3:]
     assert check_crc(corrupted) is False
 
 

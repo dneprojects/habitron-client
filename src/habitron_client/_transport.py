@@ -46,6 +46,7 @@ from ._protocol import (
     LEN_HI_INDEX,
     LEN_LO_INDEX,
     TRAILER_SIZE,
+    calc_crc,
     wrap_command,
 )
 from .exceptions import (
@@ -200,8 +201,20 @@ class BusConnection:
             )
         rest = await reader.readexactly(body_len + TRAILER_SIZE)
         payload = rest[:body_len]
-        crc = (rest[body_len + 1] << 8) | rest[body_len] if with_crc else 0
-        return payload, crc
+        # The hub computes the frame CRC over everything before the trailer --
+        # header included -- and writes it high byte first. Verifying it is the
+        # only end-to-end check there is: TCP covers Home Assistant to the hub,
+        # but not the serial hop on to the router and the modules, where the
+        # payload actually comes from.
+        crc = (rest[body_len] << 8) | rest[body_len + 1]
+        expected = calc_crc(header + payload)
+        if crc != expected:
+            raise HabitronProtocolError(
+                f"CRC mismatch from {self._host}:{self._port}: frame carries "
+                f"0x{crc:04x}, its {HEADER_SIZE + body_len} bytes compute "
+                f"0x{expected:04x}"
+            )
+        return payload, crc if with_crc else 0
 
     async def _open(
         self,

@@ -8,7 +8,7 @@ import socket
 import pytest
 
 from habitron_client import HabitronClient
-from habitron_client._protocol import build_frame, wrap_command
+from habitron_client._protocol import build_frame, calc_crc, wrap_command
 from habitron_client._transport import BusConnection
 from habitron_client.const import GET_MODULES
 from habitron_client.exceptions import (
@@ -38,12 +38,30 @@ def test_request_returns_payload() -> None:
 
 
 def test_request_crc_returns_payload_and_crc() -> None:
+    frame = build_response(b"DATA")
+
+    async def scenario() -> tuple[bytes, int]:
+        async with running(Reply(data=frame)) as sim:
+            async with HabitronClient("127.0.0.1", sim.port) as client:
+                return await client.get_compact_status()
+
+    assert asyncio.run(scenario()) == (b"DATA", calc_crc(frame[:-3]))
+
+
+def test_wrong_crc_is_refused() -> None:
+    """A frame whose CRC does not match its bytes is rejected, not parsed.
+
+    This is the only end-to-end check on the data: TCP covers Home Assistant to
+    the hub, but the payload comes from the serial hop beyond it.
+    """
+
     async def scenario() -> tuple[bytes, int]:
         async with running(Reply(data=build_response(b"DATA", crc=0x1234))) as sim:
             async with HabitronClient("127.0.0.1", sim.port) as client:
                 return await client.get_compact_status()
 
-    assert asyncio.run(scenario()) == (b"DATA", 0x1234)
+    with pytest.raises(HabitronProtocolError, match="CRC mismatch"):
+        asyncio.run(scenario())
 
 
 def test_short_acknowledgement_returns_sentinel_not_payload() -> None:
