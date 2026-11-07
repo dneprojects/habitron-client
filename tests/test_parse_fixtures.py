@@ -226,6 +226,36 @@ def test_nature_status_decodes_negative_temperature() -> None:
     assert nat.sensors[0].value == -10.0
 
 
+def test_nature_wind_settles_at_zero_when_calm() -> None:
+    """The smoothed wind reaches 0.0 and stops changing instead of decaying forever."""
+    nat = _module(b"\x14\x01", "Nature")
+    status = _zero_status()
+    status[MStatIdx.WIND] = 20
+    apply_status(nat, bytes(status))
+    assert nat.sensors[3].value == 4.0
+
+    calls: list[None] = []
+    nat.sensors[3].add_listener(lambda: calls.append(None))
+    status[MStatIdx.WIND] = 0
+    for _ in range(100):
+        apply_status(nat, bytes(status))
+    assert nat.sensors[3].value == 0.0
+    changes = len(calls)
+    for _ in range(100):
+        apply_status(nat, bytes(status))
+    assert len(calls) == changes
+
+
+def test_nature_wind_reaches_a_steady_reading() -> None:
+    """Steady wind is published as the reading itself, not stuck below it."""
+    nat = _module(b"\x14\x01", "Nature")
+    status = _zero_status()
+    status[MStatIdx.WIND] = 1
+    for _ in range(100):
+        apply_status(nat, bytes(status))
+    assert nat.sensors[3].value == 1.0
+
+
 def test_sensor_status_decodes_negative_temperature() -> None:
     """0x80C8 → bit15 set → -200 / 10 = -20.0 C."""
     s = _module(b"\x32\x28", "Sensor")

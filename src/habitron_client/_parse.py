@@ -412,12 +412,15 @@ def _status_nature(m: Module, s: bytes) -> None:
     temp = _u16(s, MStatIdx.TEMP_ROOM)
     if temp > 32767:  # negative temperature
         temp = -(temp & 0x7FFF)
-    prev_wind = m.sensors[3].value
-    prev_wind = prev_wind if isinstance(prev_wind, (int, float)) else 0
+    wind = m.sensors[3]
+    if wind._avg is None:
+        wind._avg = wind.value if isinstance(wind.value, (int, float)) else 0
+    wind._avg = 0.8 * wind._avg + 0.2 * int(s[MStatIdx.WIND])
     _set(m.sensors[0], "value", temp / 10)
     _set(m.sensors[1], "value", int(s[MStatIdx.HUM]))
     _set(m.sensors[2], "value", _u16(s, MStatIdx.LUM))
-    _set(m.sensors[3], "value", 0.8 * prev_wind + 0.2 * int(s[MStatIdx.WIND]))
+    # Publish it rounded: unrounded, calm wind kept changing down to 1e-251.
+    _set(wind, "value", round(wind._avg, 1))
     _set(m.sensors[4], "value", int(s[MStatIdx.RAIN]))
     _set(m.sensors[5], "value", int(s[MStatIdx.WINDP]))
     _set(m.diags[0], "value", s[MStatIdx.MODULE_STAT])

@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.4.1 — 2026-11-07
+
+### Fixed
+**The Smart Nature wind reading settles.** The wind is smoothed as
+`0.8 * previous + 0.2 * reading`, and the previous value was the published one,
+unrounded. In calm weather it shrank by a fifth on every status and never
+reached zero -- down to values like `1e-251` -- so every status counted as a
+change, and Home Assistant stored thousands of states a day for a wind of
+nothing.
+
+The running average is now kept unrounded on the sensor (`Sensor._avg`) and
+only its value rounded to one decimal is published. Calm wind settles at `0.0`
+and steady wind at the reading itself; rounding the published value alone
+would have stuck at `0.2`.
+
 ## 2.4.0 — 2026-09-15
 
 ### Added

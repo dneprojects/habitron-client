@@ -99,6 +99,8 @@ class Sensor(BusMember):
     """A measured value (temperature, humidity, illuminance, wind, ...)."""
 
     value: float | int | str | None = None
+    # Unrounded running average behind a smoothed ``value`` (Smart Nature wind).
+    _avg: float | None = field(default=None, init=False, repr=False, compare=False)
 
 
 @dataclass(kw_only=True)
