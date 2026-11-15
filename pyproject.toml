@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "habitron-client"
-version = "2.4.1"
+version = "2.5.0"
 description = "Asynchronous, typed API client for the Habitron SmartHub"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -22,6 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
+    "aiohttp>=3.9",
     "pyyaml>=6.0",
 ]
 

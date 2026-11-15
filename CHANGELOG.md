@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.0 — 2026-11-15
+
+### Added
+- `habitron_client.sea`: client for the Smart Energy Agent add-on API v1 (`SeaClient`, `SeaError`, `SeaCommandError`).
+- Dependency on `aiohttp`.
+
 ## 2.4.1 — 2026-11-07
 
 ### Fixed
